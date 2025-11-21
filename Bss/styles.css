@@ -16,21 +16,97 @@ canvas { display: block; }
     font-size: 18px;
     font-weight: bold;
 }
-#shop {
-    pointer-events: auto; /* Re-enable clicks for buttons */
+
+/* Modals */
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.8);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 100;
+    pointer-events: auto;
 }
-button {
-    padding: 10px 20px;
-    font-size: 16px;
-    cursor: pointer;
-    background-color: #ffd700;
-    border: 2px solid #b8860b;
+.hidden {
+    display: none;
+}
+.modal-content {
+    background: #fff4e6; /* Light Honey color */
+    padding: 20px;
+    border-radius: 10px;
+    text-align: center;
+    width: 400px;
+    border: 4px solid #b8860b;
+    font-family: sans-serif;
+}
+
+/* Shop */
+.shop-carousel {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin: 20px 0;
+    background: #eee;
+    padding: 10px;
     border-radius: 5px;
-    font-weight: bold;
 }
-button:hover {
-    background-color: #ffeb3b;
+#shop-display {
+    flex-grow: 1;
+    margin: 0 10px;
 }
-button:active {
-    background-color: #b8860b;
+.arrow-btn {
+    background: #8B4513;
+    color: white;
+    border: none;
+    font-size: 20px;
+    width: 40px;
+    height: 40px;
+    cursor: pointer;
+}
+.action-btn {
+    background: #32CD32; /* Lime Green */
+    color: white;
+    font-size: 20px;
+    padding: 10px 30px;
+    border: none;
+    cursor: pointer;
+    margin-top: 10px;
+}
+.action-btn:disabled {
+    background: #555;
+    cursor: not-allowed;
+}
+.close-btn {
+    background: #ff4444;
+    color: white;
+    border: none;
+    padding: 5px 10px;
+    margin-top: 20px;
+    cursor: pointer;
+}
+
+/* Hive Grid */
+#hive-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 10px;
+    margin: 20px 0;
+}
+.hive-slot {
+    width: 50px;
+    height: 50px;
+    background: #ddd;
+    border: 2px solid #999;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+}
+.hive-slot.filled {
+    background: #ffd700;
+    border-color: #b8860b;
 }

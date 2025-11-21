@@ -86,6 +86,34 @@ const btnShopClose = document.getElementById('shop-close-btn');
 // Hive UI Elements
 const btnHiveClose = document.getElementById('hive-close-btn');
 
+// Confirm Modal Elements
+const confirmModal = document.getElementById('confirm-modal');
+const confirmTitle = document.getElementById('confirm-title');
+const confirmMsg = document.getElementById('confirm-msg');
+const btnConfirmYes = document.getElementById('confirm-yes');
+const btnConfirmNo = document.getElementById('confirm-no');
+
+let confirmCallback = null;
+
+function showConfirm(title, msg, onYes) {
+    confirmTitle.innerText = title;
+    confirmMsg.innerText = msg;
+    confirmCallback = onYes;
+    confirmModal.classList.remove('hidden');
+}
+
+function closeConfirm() {
+    confirmModal.classList.add('hidden');
+    confirmCallback = null;
+}
+
+btnConfirmYes.addEventListener('click', () => {
+    if (confirmCallback) confirmCallback();
+    closeConfirm();
+});
+
+btnConfirmNo.addEventListener('click', closeConfirm);
+
 // --- Shop System ---
 let eggCost = 25;
 
@@ -420,9 +448,25 @@ class Bee {
         this.mesh = new THREE.Mesh(geometry, material);
         this.mesh.castShadow = true;
 
-        // Add Face (Simple Eyes)
+        // Add Face based on Type
+        this.addFaceFeatures(color);
+
+        scene.add(this.mesh);
+
+        // Initial position
+        this.mesh.position.copy(state.player.position).add(this.positionOffset);
+    }
+
+    addFaceFeatures(baseColor) {
+        const type = this.data.type;
+
+        // Eyes
+        const eyeColor = (type === 'Photon' || type === 'Buoyant') ? 0xFFFFFF : 0x000000;
+        if (type === 'Buoyant') eyeColor = 0x0000FF;
+
         const eyeGeo = new THREE.SphereGeometry(0.05, 4, 4);
-        const eyeMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
+        const eyeMat = new THREE.MeshBasicMaterial({ color: eyeColor });
+
         const leftEye = new THREE.Mesh(eyeGeo, eyeMat);
         leftEye.position.set(-0.1, 0.1, 0.25);
         this.mesh.add(leftEye);
@@ -431,10 +475,31 @@ class Bee {
         rightEye.position.set(0.1, 0.1, 0.25);
         this.mesh.add(rightEye);
 
-        scene.add(this.mesh);
+        // Specific Features
+        if (type === 'Tabby') {
+            // Ears
+            const earGeo = new THREE.ConeGeometry(0.08, 0.15, 4);
+            const earMat = new THREE.MeshStandardMaterial({ color: 0x8B4513 }); // Dark Brown
 
-        // Initial position
-        this.mesh.position.copy(state.player.position).add(this.positionOffset);
+            const leftEar = new THREE.Mesh(earGeo, earMat);
+            leftEar.position.set(-0.15, 0.25, 0);
+            leftEar.rotation.z = 0.5;
+            this.mesh.add(leftEar);
+
+            const rightEar = new THREE.Mesh(earGeo, earMat);
+            rightEar.position.set(0.15, 0.25, 0);
+            rightEar.rotation.z = -0.5;
+            this.mesh.add(rightEar);
+        }
+        else if (type === 'Lion') {
+            // Mane
+            const maneGeo = new THREE.TorusGeometry(0.3, 0.05, 4, 8);
+            const maneMat = new THREE.MeshStandardMaterial({ color: 0xFF8C00 }); // Dark Orange
+            const mane = new THREE.Mesh(maneGeo, maneMat);
+            mane.rotation.x = Math.PI / 2; // Flat
+            // mane.position.y = 0;
+            this.mesh.add(mane);
+        }
     }
 
     update(dt) {
@@ -444,7 +509,7 @@ class Bee {
             this.abilityTimer = 0;
             // Spawn Token
             const rand = Math.random();
-            if (rand < 0.1) { // 10% chance for Ticket
+            if (rand < 0.4) { // Increased to 40% chance for Ticket for testing
                 spawnToken(this.mesh.position, 'TICKET');
             } else {
                 spawnToken(this.mesh.position, 'HONEY');
@@ -682,7 +747,16 @@ function renderHive() {
             div.style.backgroundColor = color;
             div.style.borderColor = '#fff';
 
-            div.innerText = slotData.type[0]; // First letter of Type (e.g., 'B' for Buoyant)
+            // Add Face to Grid
+            const face = document.createElement('div');
+            face.className = 'hive-face';
+            face.innerHTML = `
+                <div class="eye-left" style="background:${slotData.type === 'Photon' ? '#fff' : 'black'}"></div>
+                <div class="eye-right" style="background:${slotData.type === 'Photon' ? '#fff' : 'black'}"></div>
+                <div class="mouth"></div>
+            `;
+            div.appendChild(face);
+
             div.title = `${slotData.rarity} ${slotData.type} Bee`;
         } else {
             div.innerText = '+';
@@ -694,8 +768,7 @@ function renderHive() {
 
 function tryHatchEgg(index) {
     if (state.inventory.eggs > 0) {
-        const confirmHatch = confirm(`Hatch an egg in slot ${index + 1}?`);
-        if (confirmHatch) {
+        showConfirm("Hatch Egg", `Hatch an egg in slot ${index + 1}?`, () => {
             state.inventory.eggs--;
 
             // Random Rarity Logic
@@ -703,6 +776,7 @@ function tryHatchEgg(index) {
             let rarity = 'Common';
             let type = 'Basic';
 
+            // Allow getting Ticket Shop bees rarely from eggs too? Maybe not, keep distinct.
             if (rand < 0.05) { rarity = 'Mythic'; type = 'Buoyant'; }
             else if (rand < 0.15) { rarity = 'Legendary'; type = 'Lion'; }
             else if (rand < 0.35) { rarity = 'Epic'; type = 'Honey'; }
@@ -716,9 +790,10 @@ function tryHatchEgg(index) {
             state.bees.push(bee);
 
             renderHive();
-        }
+            showNotification(`Hatched ${rarity} ${type} Bee!`);
+        });
     } else {
-        alert("You don't have any eggs!");
+        showNotification("You don't have any eggs!");
     }
 }
 

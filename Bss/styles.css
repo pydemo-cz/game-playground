@@ -125,4 +125,32 @@ canvas { display: block; }
 .hive-slot.filled {
     background: #ffd700;
     border-color: #b8860b;
+    position: relative;
+    overflow: hidden;
+}
+.hive-face {
+    width: 100%;
+    height: 100%;
+    position: absolute;
+    top: 0;
+    left: 0;
+}
+.eye-left, .eye-right {
+    position: absolute;
+    width: 8px;
+    height: 8px;
+    background: black;
+    border-radius: 50%;
+    top: 15px;
+}
+.eye-left { left: 12px; }
+.eye-right { right: 12px; }
+.mouth {
+    position: absolute;
+    width: 20px;
+    height: 10px;
+    border-bottom: 2px solid black;
+    border-radius: 50%;
+    bottom: 10px;
+    left: 15px;
 }

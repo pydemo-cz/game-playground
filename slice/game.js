@@ -21,6 +21,7 @@ let gameState = {
     isRunning: false,
     isGameOver: false,
     score: 0,
+    highScore: 0,
     lives: 3,
     width: 0,
     height: 0,
@@ -117,7 +118,12 @@ function handleInputStart(x, y) {
 
 function handleInputEnd() {
     input.isTouching = false;
-    gameState.timeScale = SLOW_MO_SCALE;
+    // Only allow Slow Mo if NOT drawing
+    if (!gameState.player.isDrawing) {
+        gameState.timeScale = SLOW_MO_SCALE;
+    } else {
+        gameState.timeScale = NORMAL_SPEED_SCALE;
+    }
 }
 
 function handleInputMove(x, y) {
@@ -387,12 +393,18 @@ function handleGridMovement(c, r) {
             fillArea();
             gameState.player.isDrawing = false;
             gameState.trail = [];
-            // Snap player to center of safe cell to prevent drift
-            // gameState.player.dirX = 0; gameState.player.dirY = 0; // Optional: stop player?
         }
+
+        // Entered safe zone: Check if we should slow down (user not touching)
+        if (!input.isTouching) {
+            gameState.timeScale = SLOW_MO_SCALE;
+        }
+
     } else if (cellType === CELL_EMPTY) {
         if (!gameState.player.isDrawing) {
             gameState.player.isDrawing = true;
+            // Force normal speed when starting to draw
+            gameState.timeScale = NORMAL_SPEED_SCALE;
         }
         // Add to trail
         gameState.grid[r][c] = CELL_TRAIL;
@@ -509,6 +521,14 @@ function handleGameOver() {
     if (gameState.lives <= 0) {
         gameState.isGameOver = true;
         gameState.isRunning = false;
+
+        // High Score Logic
+        if (gameState.score > gameState.highScore) {
+            gameState.highScore = gameState.score;
+            localStorage.setItem('slice_highscore', gameState.highScore);
+        }
+        document.getElementById('high-score').innerText = `High Score: ${gameState.highScore}`;
+
         document.getElementById('final-score').innerText = `Score: ${gameState.score}`;
         document.getElementById('game-over-screen').classList.remove('hidden');
     } else {
@@ -533,6 +553,11 @@ function draw() {
     // Clear screen
     ctx.fillStyle = '#050505';
     ctx.fillRect(0, 0, gameState.width, gameState.height);
+
+    if (gameState.isGameOver) {
+        // Just clear/black out everything behind UI
+        return;
+    }
 
     // Draw Grid (Filled Areas)
     ctx.fillStyle = '#222'; // Empty area debug color? or just black
@@ -590,6 +615,9 @@ function draw() {
 }
 
 // Initialization
+gameState.highScore = parseInt(localStorage.getItem('slice_highscore')) || 0;
+document.getElementById('high-score').innerText = `High Score: ${gameState.highScore}`;
+
 window.addEventListener('resize', resize);
 resize();
 startLoop();

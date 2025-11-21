@@ -187,6 +187,12 @@ class Player {
 
         // Helper box for calculations
         this.box = new THREE.Box3();
+
+        // Touch inputs
+        this.touch = {
+            joystick: { active: false, startX: 0, startY: 0, identifier: -1 },
+            camera: { active: false, startX: 0, startY: 0, prevX: 0, prevY: 0, identifier: -1 }
+        };
     }
 
     get position() {
@@ -194,7 +200,8 @@ class Player {
     }
 
     applyInputs(delta) {
-        const speed = 8.0; // Increased speed slightly
+        // Increased speed to be responsive
+        const speed = 60.0;
         const direction = new THREE.Vector3();
         this.camera.getWorldDirection(direction);
         direction.y = 0;
@@ -209,7 +216,7 @@ class Player {
         if (this.input.right) this.velocity.addScaledVector(right, -speed * delta);
 
         if (this.input.jump && this.onGround) {
-            this.velocity.y = 6.0;
+            this.velocity.y = 10.0; // Improved jump
             this.onGround = false;
         }
     }
@@ -285,7 +292,7 @@ class Player {
 
     update(delta) {
         // Apply gravity
-        this.velocity.y -= 15.0 * delta;
+        this.velocity.y -= 25.0 * delta; // Stronger gravity
 
         // Apply friction
         const friction = 10.0;
@@ -314,36 +321,84 @@ class Player {
     }
 
      handleTouch(event) {
-        // Simple touch controls copy-pasted/adapted
-         for (const touch of event.changedTouches) {
+        for (const touch of event.changedTouches) {
             const isLeftSide = touch.clientX < window.innerWidth / 2;
 
             switch (event.type) {
                 case 'touchstart':
                     if (isLeftSide) {
-                       this.touchStartX = touch.clientX;
-                       this.touchStartY = touch.clientY;
-                       this.touchActive = true;
+                        if (!this.touch.joystick.active) {
+                            this.touch.joystick.active = true;
+                            this.touch.joystick.identifier = touch.identifier;
+                            this.touch.joystick.startX = touch.clientX;
+                            this.touch.joystick.startY = touch.clientY;
+                        }
+                    } else {
+                        if (!this.touch.camera.active) {
+                            this.touch.camera.active = true;
+                            this.touch.camera.identifier = touch.identifier;
+                            this.touch.camera.startX = touch.clientX;
+                            this.touch.camera.startY = touch.clientY;
+                            this.touch.camera.prevX = touch.clientX;
+                            this.touch.camera.prevY = touch.clientY;
+                        }
                     }
                     break;
+
                 case 'touchmove':
-                    if (isLeftSide && this.touchActive) {
-                        const deltaY = touch.clientY - this.touchStartY;
-                        this.input.forward = deltaY < -20;
-                        this.input.backward = deltaY > 20;
+                    if (isLeftSide) {
+                        if (this.touch.joystick.active && this.touch.joystick.identifier === touch.identifier) {
+                            const deltaX = touch.clientX - this.touch.joystick.startX;
+                            const deltaY = touch.clientY - this.touch.joystick.startY;
+
+                            // Threshold for movement
+                            const threshold = 20;
+                            this.input.forward = deltaY < -threshold;
+                            this.input.backward = deltaY > threshold;
+                            this.input.left = deltaX < -threshold;
+                            this.input.right = deltaX > threshold;
+                        }
+                    } else {
+                        if (this.touch.camera.active && this.touch.camera.identifier === touch.identifier) {
+                            const deltaX = touch.clientX - this.touch.camera.prevX;
+                            const deltaY = touch.clientY - this.touch.camera.prevY;
+
+                            // Rotate camera
+                            this.camera.rotation.y -= deltaX * 0.005;
+
+                            // Clamp pitch
+                            // Accessing rotation.x logic outside of PointerLock needs care but simply:
+                            this.camera.rotation.x -= deltaY * 0.005;
+                            this.camera.rotation.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, this.camera.rotation.x));
+
+                            this.touch.camera.prevX = touch.clientX;
+                            this.touch.camera.prevY = touch.clientY;
+                        }
                     }
                     break;
+
                 case 'touchend':
                     if (isLeftSide) {
-                        this.input.forward = false;
-                        this.input.backward = false;
-                        this.touchActive = false;
+                        if (this.touch.joystick.identifier === touch.identifier) {
+                            this.touch.joystick.active = false;
+                            this.input.forward = false;
+                            this.input.backward = false;
+                            this.input.left = false;
+                            this.input.right = false;
+                        }
                     } else {
-                        this.input.jump = true;
+                        if (this.touch.camera.identifier === touch.identifier) {
+                            this.touch.camera.active = false;
+                            // Check for tap to jump
+                            const tapDistance = Math.hypot(touch.clientX - this.touch.camera.startX, touch.clientY - this.touch.camera.startY);
+                            if (tapDistance < 10) {
+                                this.input.jump = true;
+                            }
+                        }
                     }
                     break;
             }
-         }
+        }
     }
 }
 
@@ -475,9 +530,9 @@ async function main() {
         document.addEventListener('keyup', onKeyUp);
 
         // Mobile inputs
-        document.addEventListener('touchstart', (e) => player.handleTouch(e));
-        document.addEventListener('touchmove', (e) => player.handleTouch(e));
-        document.addEventListener('touchend', (e) => player.handleTouch(e));
+        document.addEventListener('touchstart', (e) => player.handleTouch(e), { passive: false });
+        document.addEventListener('touchmove', (e) => { player.handleTouch(e); e.preventDefault(); }, { passive: false });
+        document.addEventListener('touchend', (e) => player.handleTouch(e), { passive: false });
 
         // Setup Player Position (High up to fall securely)
         camera.position.set(0, 30, 30);
@@ -486,15 +541,24 @@ async function main() {
         let prevTime = performance.now();
         function animate() {
             requestAnimationFrame(animate);
-            const time = performance.now();
-            const delta = Math.min((time - prevTime) / 1000, 0.1); // Cap delta to prevent huge jumps on lag
-            prevTime = time;
 
-            if (controls.isLocked) {
+            try {
+                const time = performance.now();
+                const delta = Math.min((time - prevTime) / 1000, 0.1); // Cap delta to prevent huge jumps on lag
+                prevTime = time;
+
+                // Always update player physics, whether locked or not (supports mobile)
                 player.update(delta);
-            }
 
-            renderer.render(scene, camera);
+                renderer.render(scene, camera);
+            } catch (e) {
+                console.error("Loop error:", e);
+                // Only alert once to avoid spam
+                if (!window.hasAlertedError) {
+                    alert("Loop Error: " + e.message);
+                    window.hasAlertedError = true;
+                }
+            }
         }
 
         window.addEventListener('resize', () => {

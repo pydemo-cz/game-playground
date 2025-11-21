@@ -8,6 +8,18 @@ const PLAYER_SPEED = 10;
 const HIVE_COLOR = 0xFFD700; // Gold
 const FLOWER_COLORS = [0xFF0000, 0x0000FF, 0xFFFFFF]; // Red, Blue, White
 
+const TOOLS = [
+    { name: "Stick", cost: 0, power: 1 },
+    { name: "Rake", cost: 100, power: 3 },
+    { name: "Vacuum", cost: 500, power: 10 }
+];
+
+const BACKPACKS = [
+    { name: "Pouch", cost: 0, capacity: 100 },
+    { name: "Satchel", cost: 200, capacity: 300 },
+    { name: "Canister", cost: 1000, capacity: 1000 }
+];
+
 // --- State ---
 const state = {
     keys: {},
@@ -17,6 +29,8 @@ const state = {
     pollen: 0,
     honey: 0,
     backpackCapacity: 100,
+    currentToolIndex: 0,
+    currentBackpackIndex: 0,
     tool: {
         mesh: null,
         isSwinging: false,
@@ -31,17 +45,78 @@ const uiPollen = document.getElementById('pollen-count');
 const uiCapacity = document.getElementById('backpack-capacity');
 const uiHoney = document.getElementById('honey-count');
 const btnBuyEgg = document.getElementById('buy-egg-btn');
+const btnBuyTool = document.getElementById('buy-tool-btn');
+const btnBuyBackpack = document.getElementById('buy-backpack-btn');
 
 // --- Shop ---
 let eggCost = 25;
+
+function updateShopUI() {
+    // Egg
+    btnBuyEgg.innerText = `Buy Egg (${eggCost} Honey)`;
+
+    // Tool
+    const nextToolIdx = state.currentToolIndex + 1;
+    if (nextToolIdx < TOOLS.length) {
+        const tool = TOOLS[nextToolIdx];
+        btnBuyTool.innerText = `Buy ${tool.name} (${tool.cost} Honey)`;
+        btnBuyTool.disabled = false;
+    } else {
+        btnBuyTool.innerText = "Max Tool";
+        btnBuyTool.disabled = true;
+    }
+
+    // Backpack
+    const nextPackIdx = state.currentBackpackIndex + 1;
+    if (nextPackIdx < BACKPACKS.length) {
+        const pack = BACKPACKS[nextPackIdx];
+        btnBuyBackpack.innerText = `Buy ${pack.name} (${pack.cost} Honey)`;
+        btnBuyBackpack.disabled = false;
+    } else {
+        btnBuyBackpack.innerText = "Max Backpack";
+        btnBuyBackpack.disabled = true;
+    }
+}
 
 btnBuyEgg.addEventListener('click', () => {
     if (state.honey >= eggCost) {
         state.honey -= eggCost;
         state.bees.push(new Bee(state.bees.length));
         eggCost = Math.floor(eggCost * 1.5); // Increase cost
-        btnBuyEgg.innerText = `Buy Egg (${eggCost} Honey)`;
         updateUI();
+        updateShopUI();
+    }
+});
+
+btnBuyTool.addEventListener('click', () => {
+    const nextToolIdx = state.currentToolIndex + 1;
+    if (nextToolIdx < TOOLS.length) {
+        const tool = TOOLS[nextToolIdx];
+        if (state.honey >= tool.cost) {
+            state.honey -= tool.cost;
+            state.currentToolIndex = nextToolIdx;
+
+            // Visual Feedback: Change Tool Color slightly (Darker brown)
+            state.tool.mesh.material.color.multiplyScalar(0.8);
+
+            updateUI();
+            updateShopUI();
+        }
+    }
+});
+
+btnBuyBackpack.addEventListener('click', () => {
+    const nextPackIdx = state.currentBackpackIndex + 1;
+    if (nextPackIdx < BACKPACKS.length) {
+        const pack = BACKPACKS[nextPackIdx];
+        if (state.honey >= pack.cost) {
+            state.honey -= pack.cost;
+            state.currentBackpackIndex = nextPackIdx;
+            state.backpackCapacity = pack.capacity;
+
+            updateUI();
+            updateShopUI();
+        }
     }
 });
 
@@ -287,10 +362,12 @@ function swingTool() {
     // Check collisions with flowers
     // Simple distance check from player to flowers
     const playerPos = state.player.position;
+    const power = TOOLS[state.currentToolIndex].power;
+
     state.flowers.forEach(flower => {
         const dist = playerPos.distanceTo(flower.mesh.position);
         if (dist < 2.5) { // Close enough
-            collectPollen(1);
+            collectPollen(power);
         }
     });
 }

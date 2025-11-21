@@ -1,0 +1,9 @@
+{
+    "games": [
+        {
+            "title": "Minecraft Clone",
+            "description": "A 3D sandbox adventure. Explore a procedurally generated world made of blocks.",
+            "url": "minecraft-clone/index.html"
+        }
+    ]
+}

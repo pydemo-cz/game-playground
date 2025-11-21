@@ -1,0 +1,14 @@
+# Dependencies
+/node_modules
+
+# Build artifacts
+/dist
+/build
+
+# IDE configuration files
+.idea/
+.vscode/
+
+# Operating System files
+.DS_Store
+Thumbs.db

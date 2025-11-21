@@ -52,6 +52,9 @@
     <script>
         window.onerror = function(message, source, lineno, colno, error) {
             const overlay = document.getElementById('error-overlay');
+            // Ignore harmless ResizeObserver loop errors that are common on mobile
+            if (message.includes && message.includes('ResizeObserver')) return;
+
             overlay.style.display = 'block';
             overlay.textContent += `Error: ${message}\nSource: ${source}:${lineno}:${colno}\nStack: ${error ? error.stack : 'N/A'}\n\n`;
             console.error(message, error);
@@ -62,6 +65,6 @@
             overlay.textContent += `Promise Rejection: ${event.reason}\n\n`;
         });
     </script>
-    <script type="module" src="main.js"></script>
+    <script type="module" crossorigin="anonymous" src="main.js"></script>
 </body>
 </html>

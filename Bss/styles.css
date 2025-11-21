@@ -1,0 +1,36 @@
+body { margin: 0; overflow: hidden; font-family: sans-serif; }
+canvas { display: block; }
+#ui-container {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    pointer-events: none; /* Let clicks pass through to canvas */
+    user-select: none;
+}
+#stats {
+    background: rgba(0, 0, 0, 0.5);
+    color: white;
+    padding: 10px;
+    border-radius: 5px;
+    margin-bottom: 10px;
+    font-size: 18px;
+    font-weight: bold;
+}
+#shop {
+    pointer-events: auto; /* Re-enable clicks for buttons */
+}
+button {
+    padding: 10px 20px;
+    font-size: 16px;
+    cursor: pointer;
+    background-color: #ffd700;
+    border: 2px solid #b8860b;
+    border-radius: 5px;
+    font-weight: bold;
+}
+button:hover {
+    background-color: #ffeb3b;
+}
+button:active {
+    background-color: #b8860b;
+}

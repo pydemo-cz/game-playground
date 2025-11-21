@@ -9,6 +9,11 @@
             "title": "Bee Swarm Simulator Clone",
             "description": "Collect pollen, make honey, and hatch bees in this 3D simulator.",
             "url": "Bss/index.html"
+        },
+        {
+            "title": "Slice",
+            "description": "A Neon Xonix-style mobile arcade game. Swipe to steer, lift to slow down time.",
+            "url": "slice/index.html"
         }
     ]
 }

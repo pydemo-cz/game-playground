@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bee Swarm Simulator Clone</title>
+    <link rel="stylesheet" href="styles.css">
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+</head>
+<body>
+    <div id="ui-container">
+        <div id="stats">
+            <div>Pollen: <span id="pollen-count">0</span> / <span id="backpack-capacity">100</span></div>
+            <div>Honey: <span id="honey-count">0</span></div>
+        </div>
+        <div id="shop">
+            <button id="buy-egg-btn">Buy Egg (25 Honey)</button>
+        </div>
+    </div>
+    <script type="module" src="main.js"></script>
+</body>
+</html>

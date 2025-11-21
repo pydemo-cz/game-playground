@@ -4,6 +4,11 @@
             "title": "Minecraft Clone",
             "description": "A 3D sandbox adventure. Explore a procedurally generated world made of blocks.",
             "url": "minecraft-clone/index.html"
+        },
+        {
+            "title": "Bee Swarm Simulator Clone",
+            "description": "Collect pollen, make honey, and hatch bees in this 3D simulator.",
+            "url": "Bss/index.html"
         }
     ]
 }

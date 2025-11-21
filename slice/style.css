@@ -59,6 +59,18 @@ canvas {
     color: var(--neon-blue);
 }
 
+#high-score {
+    position: absolute;
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 20px;
+    font-weight: bold;
+    color: var(--neon-green);
+    text-shadow: 0 0 5px var(--neon-green);
+    padding: 10px;
+}
+
 #lives {
     top: 10px;
     right: 10px;

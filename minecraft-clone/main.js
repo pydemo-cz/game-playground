@@ -199,6 +199,49 @@ class Player {
         return this.camera.position;
     }
 
+    // New method: Explicitly check if there is ground below (proactive check)
+    isGrounded() {
+        const pos = this.position;
+        // Check a small box just below feet
+        // Feet are at pos.y - 1.6 (approx)
+        // Actually, in THREE.PointerLockControls, camera is at player eyes.
+        // Let's assume player height 1.8, eyes at 1.6. Feet at y - 1.6.
+
+        // However, in update() we resolve collision such that feet don't penetrate blocks.
+        // So feet are exactly at block.maxY usually.
+
+        const feetY = pos.y - 1.6;
+        const checkY = Math.floor(feetY - 0.1); // Block below feet
+
+        const minX = Math.floor(pos.x - this.radius);
+        const maxX = Math.floor(pos.x + this.radius);
+        const minZ = Math.floor(pos.z - this.radius);
+        const maxZ = Math.floor(pos.z + this.radius);
+
+        // If feet are very close to the block top (e.g., 2.001), we are grounded on block 1.
+        // If feet are at 2.5, we are in air.
+        // Distance to block top: feetY - (checkY + 1)
+
+        // Simple voxel check: check blocks in footprint at Y-1
+        for(let x = minX; x <= maxX; x++) {
+            for(let z = minZ; z <= maxZ; z++) {
+                if(this.world.hasBlock(x, checkY, z)) {
+                    // There is a block below. Are we close enough?
+                    // Block top is checkY + 1.
+                    const dist = feetY - (checkY + 1);
+                    if (dist > -0.2 && dist < 0.2) { // Tolerance
+                        return true;
+                    }
+                }
+                // Also check current Y (if stuck inside block slightly)
+                 if(this.world.hasBlock(x, Math.floor(feetY), z)) {
+                    return true;
+                 }
+            }
+        }
+        return false;
+    }
+
     applyInputs(delta) {
         // Increased speed to be responsive
         const speed = 60.0;
@@ -216,8 +259,12 @@ class Player {
         if (this.input.right) this.velocity.addScaledVector(right, -speed * delta);
 
         if (this.input.jump && this.onGround) {
-            this.velocity.y = 12.0; // Stronger jump
+            this.velocity.y = 12.0;
             this.onGround = false;
+            // Consume jump input only on success
+            // But for touch "tap", we might want to clear it anyway?
+            // Let's clear it to prevent "bunny hopping" if we hold space
+            // this.input.jump = false; // Done in update loop usually
         }
     }
 
@@ -238,6 +285,8 @@ class Player {
         const endY = Math.floor(maxY);
         const startZ = Math.floor(minZ);
         const endZ = Math.floor(maxZ);
+
+        let groundCollisionDetected = false;
 
         for (let x = startX; x <= endX; x++) {
             for (let y = startY; y <= endY; y++) {
@@ -264,7 +313,7 @@ class Player {
                                  if (pos.y > y + 0.5) { // Hitting floor
                                      this.position.y += overlapY;
                                      this.velocity.y = 0;
-                                     this.onGround = true;
+                                     groundCollisionDetected = true;
                                  } else { // Hitting ceiling
                                      this.position.y -= overlapY;
                                      this.velocity.y = 0;
@@ -280,19 +329,25 @@ class Player {
                                  else this.position.z -= overlapZ;
                                  this.velocity.z = 0;
                              }
-                             // Update bounds after resolution
-                             return; // Resolve one collision per frame to avoid jitter? Or loop?
-                             // Simple logic: resolve and return often works well enough for simple AABB
+                             return; // Resolve one per frame
                         }
                     }
                 }
             }
         }
+        return groundCollisionDetected;
     }
 
     update(delta) {
+        // Check ground status proactively before physics to allow jumping from "rest"
+        const groundedProactive = this.isGrounded();
+
+        // We use a combined flag: either we stood on something last frame (from collision) OR we are currently detecting ground below.
+        // But to be safe, let's trust the proactive check more for "taking off".
+        this.onGround = groundedProactive || this.onGround;
+
         // Apply gravity
-        this.velocity.y -= 18.0 * delta; // Reduced gravity for better jump feel
+        this.velocity.y -= 18.0 * delta;
 
         // Apply friction
         const friction = 10.0;
@@ -307,8 +362,14 @@ class Player {
         this.position.z += this.velocity.z * delta;
         this.checkCollision();
         this.position.y += this.velocity.y * delta;
-        this.onGround = false; // Assume air until collision proves otherwise
-        this.checkCollision();
+
+        // Reset onGround for next frame's logic (will be set by checkCollision or isGrounded)
+        // Actually, checkCollision sets velocity to 0 if hitting floor.
+        // We should set onGround based on checkCollision for the *next* frame input.
+
+        this.onGround = false;
+        const hitFloor = this.checkCollision();
+        if(hitFloor) this.onGround = true;
 
         // Reset jump input
         this.input.jump = false;

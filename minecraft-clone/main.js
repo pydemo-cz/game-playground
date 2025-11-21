@@ -216,7 +216,7 @@ class Player {
         if (this.input.right) this.velocity.addScaledVector(right, -speed * delta);
 
         if (this.input.jump && this.onGround) {
-            this.velocity.y = 10.0; // Improved jump
+            this.velocity.y = 12.0; // Stronger jump
             this.onGround = false;
         }
     }
@@ -292,7 +292,7 @@ class Player {
 
     update(delta) {
         // Apply gravity
-        this.velocity.y -= 25.0 * delta; // Stronger gravity
+        this.velocity.y -= 18.0 * delta; // Reduced gravity for better jump feel
 
         // Apply friction
         const friction = 10.0;
@@ -499,8 +499,14 @@ async function main() {
 
         // Setup Controls
         const ui = document.getElementById('ui');
+        let lastTouchTime = 0;
+        document.body.addEventListener('touchstart', () => { lastTouchTime = performance.now(); }, { passive: true });
+
         document.body.addEventListener('click', () => {
-            controls.lock();
+            // Prevent PointerLock on mobile devices (touch interaction) to avoid crashes
+            if (performance.now() - lastTouchTime > 1000) {
+                controls.lock();
+            }
         });
         controls.addEventListener('lock', () => {
             ui.style.display = 'none';

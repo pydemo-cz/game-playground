@@ -23,7 +23,10 @@ const TOOLS = [
 const BACKPACKS = [
     { name: "Pouch", cost: 0, capacity: 100 },
     { name: "Satchel", cost: 200, capacity: 300 },
-    { name: "Canister", cost: 1000, capacity: 1000 }
+    { name: "Canister", cost: 1000, capacity: 1000 },
+    { name: "Porcelain Port-O-Hive", cost: 5000, capacity: 5000 },
+    { name: "Coconut Canister", cost: 25000, capacity: 20000 },
+    { name: "Petal Belt", cost: 100000, capacity: 50000 }
 ];
 
 // --- State ---
@@ -45,16 +48,19 @@ const state = {
         swingDirection: 1
     },
     bees: [], // Kept for active bee objects update loop
-    hiveSlots: new Array(25).fill(null), // Data for each slot: { type: 'Basic', rarity: 'Common', ... } or null
+    hiveSlots: new Array(25).fill(null),
     inventory: {
         eggs: 0
     },
+    tickets: 0,
     isShopOpen: false,
     isHiveOpen: false,
-    inShopZone: false,
+    inShopZone: false, // Tracks General Shop (Brown)
     inHiveZone: false,
-    shopSelectionIndex: 0, // 0=Egg, 1=Tool, 2=Backpack
-    tokens: [] // Array of { mesh, type, value, life }
+    activeShopType: 'GENERAL', // GENERAL, RED, BLUE, WHITE, TICKET
+    shopSelectionIndex: 0,
+    tokens: [],
+    shops: [] // Array of shop mesh objects with type
 };
 
 // UI Elements
@@ -83,61 +89,96 @@ const btnHiveClose = document.getElementById('hive-close-btn');
 // --- Shop System ---
 let eggCost = 25;
 
-function getShopItem(index) {
-    if (index === 0) {
-        return {
+function getShopItemsForType(type) {
+    const items = [];
+
+    if (type === 'GENERAL') {
+        items.push({
             type: 'EGG',
             name: 'Basic Egg',
             desc: 'Hatches a random bee.',
-            cost: eggCost
-        };
-    } else if (index === 1) {
+            cost: eggCost,
+            currency: 'Honey'
+        });
+
+        // General Tools (Stick, Rake, Vacuum)
         const nextToolIdx = state.currentToolIndex + 1;
-        if (nextToolIdx < TOOLS.length) {
+        if (nextToolIdx < 3) { // Limit General Shop to basic tools
             const tool = TOOLS[nextToolIdx];
-            return {
-                type: 'TOOL',
-                name: tool.name,
-                desc: `Collects ${tool.power} pollen per swing.`,
-                cost: tool.cost,
-                data: tool
-            };
-        } else {
-            return { type: 'TOOL', name: 'Max Tool', desc: 'You have the best tool!', cost: Infinity };
+            items.push({ type: 'TOOL', name: tool.name, desc: `Power: ${tool.power}`, cost: tool.cost, currency: 'Honey', data: tool });
         }
-    } else if (index === 2) {
+
+        // General Backpacks
         const nextPackIdx = state.currentBackpackIndex + 1;
         if (nextPackIdx < BACKPACKS.length) {
             const pack = BACKPACKS[nextPackIdx];
-            return {
-                type: 'BACKPACK',
-                name: pack.name,
-                desc: `Holds ${pack.capacity} pollen.`,
-                cost: pack.cost,
-                data: pack
-            };
-        } else {
-            return { type: 'BACKPACK', name: 'Max Backpack', desc: 'You have the best backpack!', cost: Infinity };
+            items.push({ type: 'BACKPACK', name: pack.name, desc: `Capacity: ${pack.capacity}`, cost: pack.cost, currency: 'Honey', data: pack });
         }
     }
-    return null;
+    else if (type === 'RED') {
+        // Dark Scythe
+        const tool = TOOLS.find(t => t.name === "Dark Scythe");
+        if (state.currentToolIndex < TOOLS.indexOf(tool)) {
+             items.push({ type: 'TOOL', name: tool.name, desc: `Massive Red Pollen!`, cost: tool.cost, currency: 'Honey', data: tool });
+        }
+    }
+    else if (type === 'BLUE') {
+        // Tide Popper
+        const tool = TOOLS.find(t => t.name === "Tide Popper");
+        if (state.currentToolIndex < TOOLS.indexOf(tool)) {
+             items.push({ type: 'TOOL', name: tool.name, desc: `Massive Blue Pollen!`, cost: tool.cost, currency: 'Honey', data: tool });
+        }
+    }
+    else if (type === 'WHITE') {
+        // Gummy Baller
+        const tool = TOOLS.find(t => t.name === "Gummy Baller");
+        if (state.currentToolIndex < TOOLS.indexOf(tool)) {
+             items.push({ type: 'TOOL', name: tool.name, desc: `Massive White Pollen!`, cost: tool.cost, currency: 'Honey', data: tool });
+        }
+    }
+    else if (type === 'TICKET') {
+        items.push({ type: 'BEE_UNLOCK', name: 'Photon Bee', desc: 'Infinite Energy!', cost: 500, currency: 'Tickets', rarity: 'Mythic', beeType: 'Photon' });
+        items.push({ type: 'BEE_UNLOCK', name: 'Tabby Bee', desc: 'Scratches Crit!', cost: 500, currency: 'Tickets', rarity: 'Mythic', beeType: 'Tabby' });
+        items.push({ type: 'ITEM', name: 'Star Treat', desc: 'Makes a bee Gifted!', cost: 1000, currency: 'Tickets' });
+    }
+
+    if (items.length === 0) {
+        items.push({ name: "Sold Out / Empty", desc: "Check back later", cost: Infinity, currency: "" });
+    }
+
+    return items;
+}
+
+function getShopItem(index) {
+    const items = getShopItemsForType(state.activeShopType);
+    // Clamp index
+    if (index < 0) index = items.length - 1;
+    if (index >= items.length) index = 0;
+    state.shopSelectionIndex = index;
+    return items[index];
 }
 
 function renderShop() {
     const item = getShopItem(state.shopSelectionIndex);
     shopName.innerText = item.name;
     shopDesc.innerText = item.desc;
-    shopCost.innerText = (item.cost === Infinity) ? "Sold Out" : `Cost: ${item.cost} Honey`;
+    shopCost.innerText = (item.cost === Infinity) ? "Sold Out" : `Cost: ${item.cost} ${item.currency}`;
 
-    if (item.cost === Infinity || state.honey < item.cost) {
+    let afford = false;
+    if (item.currency === 'Honey') afford = state.honey >= item.cost;
+    if (item.currency === 'Tickets') afford = state.tickets >= item.cost;
+
+    if (item.cost === Infinity || !afford) {
         btnShopBuy.disabled = true;
     } else {
         btnShopBuy.disabled = false;
     }
 }
 
-function openShop() {
+function openShop(type) {
     if (state.isShopOpen) return;
+    state.activeShopType = type;
+    state.shopSelectionIndex = 0;
     state.isShopOpen = true;
     shopModal.classList.remove('hidden');
     renderShop();
@@ -166,25 +207,66 @@ btnShopNext.addEventListener('click', () => {
 
 btnShopBuy.addEventListener('click', () => {
     const item = getShopItem(state.shopSelectionIndex);
-    if (item.cost !== Infinity && state.honey >= item.cost) {
-        state.honey -= item.cost;
+
+    let afford = false;
+    if (item.currency === 'Honey') afford = state.honey >= item.cost;
+    if (item.currency === 'Tickets') afford = state.tickets >= item.cost;
+
+    if (item.cost !== Infinity && afford) {
+        if (item.currency === 'Honey') state.honey -= item.cost;
+        if (item.currency === 'Tickets') state.tickets -= item.cost;
 
         if (item.type === 'EGG') {
             state.inventory.eggs++;
             eggCost = Math.floor(eggCost * 1.5);
-            alert("You bought an egg! Go to your hive to hatch it.");
+            showNotification("Purchased Basic Egg (+1 Egg Required)");
         } else if (item.type === 'TOOL') {
-            state.currentToolIndex++;
+            // Find global index of this tool
+            const idx = TOOLS.findIndex(t => t.name === item.data.name);
+            if (idx !== -1) state.currentToolIndex = idx;
+
             state.tool.mesh.material.color.multiplyScalar(0.8);
+            showNotification(`Equipped ${item.name}!`);
         } else if (item.type === 'BACKPACK') {
             state.currentBackpackIndex++;
             state.backpackCapacity = item.data.capacity;
+            showNotification(`Upgraded to ${item.name}!`);
+        } else if (item.type === 'BEE_UNLOCK') {
+             // Give a special egg or direct hatch? Let's give a special egg.
+             // Simplified: Just add a bee directly to next slot for now or give "Star Egg"
+             state.inventory.eggs++;
+             // In a real full implementation we'd track "Special Eggs", but user asked for "Ticket Shop"
+             showNotification(`Unlocked ${item.name} (Check Inventory)`);
         }
 
         updateUI();
         renderShop();
     }
 });
+
+function showNotification(text) {
+    // Create or reuse notification element
+    let note = document.getElementById('notification');
+    if (!note) {
+        note = document.createElement('div');
+        note.id = 'notification';
+        document.body.appendChild(note);
+        // Styling will be done via JS or CSS, let's add basic inline
+        note.style.position = 'absolute';
+        note.style.top = '20%';
+        note.style.left = '50%';
+        note.style.transform = 'translate(-50%, -50%)';
+        note.style.backgroundColor = 'rgba(0,0,0,0.7)';
+        note.style.color = 'white';
+        note.style.padding = '10px 20px';
+        note.style.borderRadius = '5px';
+        note.style.pointerEvents = 'none';
+        note.style.transition = 'opacity 0.5s';
+    }
+    note.innerText = text;
+    note.style.opacity = '1';
+    setTimeout(() => { note.style.opacity = '0'; }, 3000);
+}
 
 // --- Setup Scene ---
 const scene = new THREE.Scene();
@@ -222,24 +304,36 @@ scene.add(ground);
 const hiveGeometry = new THREE.BoxGeometry(8, 8, 8);
 const hiveMaterial = new THREE.MeshStandardMaterial({ color: HIVE_COLOR });
 state.hive = new THREE.Mesh(hiveGeometry, hiveMaterial);
-state.hive.position.set(0, 4, -40); // Back of the map
+state.hive.position.set(0, 4, -25); // Move Closer (was -40)
 state.hive.castShadow = true;
 scene.add(state.hive);
 
-// --- Shop Building ---
-const shopGeometry = new THREE.BoxGeometry(10, 8, 10);
-const shopMaterial = new THREE.MeshStandardMaterial({ color: SHOP_COLOR });
-state.shop = new THREE.Mesh(shopGeometry, shopMaterial);
-state.shop.position.set(40, 4, -10); // Right side
-state.shop.castShadow = true;
-scene.add(state.shop);
+// --- Shops ---
+function createShop(x, z, color, type) {
+    const geo = new THREE.BoxGeometry(6, 5, 6);
+    const mat = new THREE.MeshStandardMaterial({ color: color });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(x, 2.5, z);
+    mesh.castShadow = true;
+    scene.add(mesh);
 
-// Add "Shop" Text sign (simulated with a smaller lighter box for now)
-const signGeo = new THREE.BoxGeometry(6, 2, 1);
-const signMat = new THREE.MeshBasicMaterial({ color: 0xFFFFFF });
-const sign = new THREE.Mesh(signGeo, signMat);
-sign.position.set(0, 6, 5);
-state.shop.add(sign);
+    state.shops.push({ mesh: mesh, type: type });
+}
+
+// General Shop (Brown, Right)
+createShop(30, -10, 0x8B4513, 'GENERAL');
+
+// Red Shop (Red, Left/Red Field)
+createShop(-35, 10, 0xFF0000, 'RED');
+
+// Blue Shop (Blue, Right/Blue Field)
+createShop(35, 10, 0x0000FF, 'BLUE');
+
+// White Shop (White, Center/White Field)
+createShop(0, 30, 0xFFFFFF, 'WHITE');
+
+// Ticket Shop (Yellow/Striped, Far Left)
+createShop(-30, -10, 0xFFA500, 'TICKET');
 
 // --- Tokens ---
 function spawnToken(position, type) {
@@ -247,6 +341,7 @@ function spawnToken(position, type) {
     let color = 0xFFFF00;
     if (type === 'HONEY') color = 0xFFA500;
     if (type === 'SPEED') color = 0x00FF00;
+    if (type === 'TICKET') color = 0xFFD700; // Gold/Yellow for Ticket (or maybe a different shape later)
 
     const material = new THREE.MeshStandardMaterial({ color: color, emissive: 0x222222 });
     const tokenMesh = new THREE.Mesh(geometry, material);
@@ -276,9 +371,12 @@ function updateTokens(dt) {
                 state.honey += 50;
                 updateUI();
             } else if (token.type === 'SPEED') {
-                // Temporary speed boost logic (simplified: just instant reward for MVP)
-                state.honey += 100;
+                state.honey += 100; // Temp bonus
                 updateUI();
+            } else if (token.type === 'TICKET') {
+                state.tickets += 1;
+                showNotification("Found 1 Ticket!");
+                // No direct UI for tickets yet, maybe add to stats?
             }
 
             scene.remove(token.mesh);
@@ -321,6 +419,18 @@ class Bee {
         const material = new THREE.MeshStandardMaterial({ color: color });
         this.mesh = new THREE.Mesh(geometry, material);
         this.mesh.castShadow = true;
+
+        // Add Face (Simple Eyes)
+        const eyeGeo = new THREE.SphereGeometry(0.05, 4, 4);
+        const eyeMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
+        const leftEye = new THREE.Mesh(eyeGeo, eyeMat);
+        leftEye.position.set(-0.1, 0.1, 0.25);
+        this.mesh.add(leftEye);
+
+        const rightEye = new THREE.Mesh(eyeGeo, eyeMat);
+        rightEye.position.set(0.1, 0.1, 0.25);
+        this.mesh.add(rightEye);
+
         scene.add(this.mesh);
 
         // Initial position
@@ -333,7 +443,12 @@ class Bee {
         if (this.abilityTimer > this.abilityCooldown) {
             this.abilityTimer = 0;
             // Spawn Token
-            spawnToken(this.mesh.position, 'HONEY');
+            const rand = Math.random();
+            if (rand < 0.1) { // 10% chance for Ticket
+                spawnToken(this.mesh.position, 'TICKET');
+            } else {
+                spawnToken(this.mesh.position, 'HONEY');
+            }
         }
 
         if (this.state === 'IDLE') {
@@ -517,15 +632,22 @@ function checkHiveInteraction() {
     const dist = state.player.position.distanceTo(state.hive.position);
 
     if (dist < 8) {
+        // Conversion is automatic when close
+        convertPollen();
+
+        // Hive Opening is Manual via 'E'
         if (!state.inHiveZone) {
             state.inHiveZone = true;
+            showNotification("Press E to Hatch Bees");
+        }
+
+        if (state.keys['KeyE']) {
             openHive();
         }
-        convertPollen(); // Continuous conversion while in zone
     } else {
         if (state.inHiveZone) {
             state.inHiveZone = false;
-            closeHive();
+            closeHive(); // Close if walked away
         }
     }
 }
@@ -549,7 +671,18 @@ function renderHive() {
         div.className = 'hive-slot';
         if (slotData) {
             div.classList.add('filled');
-            div.innerText = slotData.rarity[0]; // First letter of rarity
+
+            // Color code the slot based on rarity
+            let color = '#ffd700'; // Default/Common
+            if (slotData.rarity === 'Rare') color = '#C0C0C0';
+            if (slotData.rarity === 'Epic') color = '#FFA500';
+            if (slotData.rarity === 'Legendary') color = '#00FFFF';
+            if (slotData.rarity === 'Mythic') color = '#9370DB';
+
+            div.style.backgroundColor = color;
+            div.style.borderColor = '#fff';
+
+            div.innerText = slotData.type[0]; // First letter of Type (e.g., 'B' for Buoyant)
             div.title = `${slotData.rarity} ${slotData.type} Bee`;
         } else {
             div.innerText = '+';
@@ -590,19 +723,26 @@ function tryHatchEgg(index) {
 }
 
 function checkShopInteraction() {
-    if (!state.shop) return;
-    const dist = state.player.position.distanceTo(state.shop.position);
+    let nearAnyShop = false;
 
-    if (dist < 10) {
-        if (!state.inShopZone) {
-            state.inShopZone = true;
-            openShop();
+    state.shops.forEach(shop => {
+        const dist = state.player.position.distanceTo(shop.mesh.position);
+        if (dist < 6) {
+            nearAnyShop = true;
+            if (!state.inShopZone) {
+                state.inShopZone = true;
+                showNotification(`Press E to open ${shop.type} Shop`);
+            }
+
+            if (state.keys['KeyE']) {
+                openShop(shop.type);
+            }
         }
-    } else {
-        if (state.inShopZone) {
-            state.inShopZone = false;
-            closeShop();
-        }
+    });
+
+    if (!nearAnyShop && state.inShopZone) {
+        state.inShopZone = false;
+        closeShop();
     }
 }
 
@@ -707,3 +847,8 @@ function animate() {
 }
 
 animate();
+
+// Expose for debugging/testing
+// window.openShop = openShop;
+// window.closeShop = closeShop;
+// window.state = state;

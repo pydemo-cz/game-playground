@@ -1,12 +1,25 @@
 const assert = require('assert');
 
 // Mocking State and Functions for Logic Testing
+const TOOLS = [
+    { name: "Stick", cost: 0, power: 1 },
+    { name: "Rake", cost: 100, power: 3 },
+    { name: "Vacuum", cost: 500, power: 10 }
+];
+
+const BACKPACKS = [
+    { name: "Pouch", cost: 0, capacity: 100 },
+    { name: "Satchel", cost: 200, capacity: 300 },
+    { name: "Canister", cost: 1000, capacity: 1000 }
+];
+
 const state = {
     pollen: 0,
     honey: 0,
     backpackCapacity: 100,
-    bees: [],
-    flowers: [] // Needed for findFlower logic if we were testing that, but we'll stick to simple logic
+    currentToolIndex: 0,
+    currentBackpackIndex: 0,
+    bees: []
 };
 
 // Mocking collectPollen
@@ -16,57 +29,66 @@ function collectPollen(amount) {
     }
 }
 
-// Mocking convertPollen
-function convertPollen() {
-    if (state.pollen > 0) {
-        const amount = state.pollen;
-        state.pollen = 0;
-        state.honey += amount;
-    }
-}
-
-// Mocking Shop Logic
-let eggCost = 25;
-function buyEgg() {
-    if (state.honey >= eggCost) {
-        state.honey -= eggCost;
-        state.bees.push({ id: state.bees.length }); // Mock Bee
-        eggCost = Math.floor(eggCost * 1.5);
-        return true;
+// Mocking Shop Logic (Simplified for test)
+function buyTool() {
+    const nextIdx = state.currentToolIndex + 1;
+    if (nextIdx < TOOLS.length) {
+        const cost = TOOLS[nextIdx].cost;
+        if (state.honey >= cost) {
+            state.honey -= cost;
+            state.currentToolIndex = nextIdx;
+            return true;
+        }
     }
     return false;
 }
 
-console.log("Running Logic Tests...");
+function buyBackpack() {
+    const nextIdx = state.currentBackpackIndex + 1;
+    if (nextIdx < BACKPACKS.length) {
+        const cost = BACKPACKS[nextIdx].cost;
+        if (state.honey >= cost) {
+            state.honey -= cost;
+            state.currentBackpackIndex = nextIdx;
+            state.backpackCapacity = BACKPACKS[nextIdx].capacity;
+            return true;
+        }
+    }
+    return false;
+}
 
-// Test 1: Pollen Collection & Cap
+
+console.log("Running Upgrade Logic Tests...");
+
+// Reset State
 state.pollen = 0;
-collectPollen(50);
-assert.strictEqual(state.pollen, 50, "Pollen should be 50");
-collectPollen(60); // Should cap at 100
-assert.strictEqual(state.pollen, 100, "Pollen should cap at 100");
-console.log("Test 1 Passed: Pollen Collection & Cap");
+state.honey = 200; // Give enough honey for upgrades
+state.backpackCapacity = 100;
+state.currentToolIndex = 0;
+state.currentBackpackIndex = 0;
 
-// Test 2: Conversion
-convertPollen();
-assert.strictEqual(state.pollen, 0, "Pollen should be drained");
-assert.strictEqual(state.honey, 100, "Honey should be 100");
-console.log("Test 2 Passed: Conversion");
+// Test 1: Buy Tool
+const boughtTool = buyTool();
+assert.strictEqual(boughtTool, true, "Should be able to buy Rake (Cost 100)");
+assert.strictEqual(state.honey, 100, "Honey should be 100 (200-100)");
+assert.strictEqual(state.currentToolIndex, 1, "Tool index should be 1");
+assert.strictEqual(TOOLS[state.currentToolIndex].name, "Rake", "Tool should be Rake");
 
-// Test 3: Shop & Cost Scaling
-state.honey = 30;
-eggCost = 25;
-state.bees = [];
+// Test 2: Tool Power Effect
+// Power of Rake is 3
+collectPollen(TOOLS[state.currentToolIndex].power);
+assert.strictEqual(state.pollen, 3, "Should collect 3 pollen with Rake");
 
-const bought1 = buyEgg();
-assert.strictEqual(bought1, true, "Should be able to buy first egg");
-assert.strictEqual(state.honey, 5, "Honey should be 5 (30-25)");
-assert.strictEqual(state.bees.length, 1, "Should have 1 bee");
-assert.strictEqual(eggCost, 37, "New cost should be 37 (25 * 1.5 floor)"); // 25*1.5 = 37.5 -> 37
+// Test 3: Buy Backpack
+state.honey = 200; // Give honey back
+const boughtPack = buyBackpack();
+assert.strictEqual(boughtPack, true, "Should be able to buy Satchel (Cost 200)");
+assert.strictEqual(state.honey, 0, "Honey should be 0");
+assert.strictEqual(state.backpackCapacity, 300, "Capacity should be 300");
 
-const bought2 = buyEgg();
-assert.strictEqual(bought2, false, "Should not be able to buy second egg (cost 37, have 5)");
+// Test 4: Capacity Check
+state.pollen = 290;
+collectPollen(20); // Add 20, total would be 310, capped at 300
+assert.strictEqual(state.pollen, 300, "Pollen should be capped at 300");
 
-console.log("Test 3 Passed: Shop & Cost Scaling");
-
-console.log("All Logic Tests Passed!");
+console.log("All Upgrade Logic Tests Passed!");

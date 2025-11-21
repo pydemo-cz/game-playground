@@ -51,6 +51,8 @@ const state = {
     },
     isShopOpen: false,
     isHiveOpen: false,
+    inShopZone: false,
+    inHiveZone: false,
     shopSelectionIndex: 0, // 0=Egg, 1=Tool, 2=Backpack
     tokens: [] // Array of { mesh, type, value, life }
 };
@@ -59,6 +61,7 @@ const state = {
 const uiPollen = document.getElementById('pollen-count');
 const uiCapacity = document.getElementById('backpack-capacity');
 const uiHoney = document.getElementById('honey-count');
+const uiConversion = document.getElementById('conversion-msg');
 
 // Modals
 const shopModal = document.getElementById('shop-modal');
@@ -512,11 +515,18 @@ function updatePlayer(dt) {
 function checkHiveInteraction() {
     if (!state.hive) return;
     const dist = state.player.position.distanceTo(state.hive.position);
+
     if (dist < 8) {
-        convertPollen();
-        openHive();
-    } else if (dist > 12 && state.isHiveOpen) {
-        closeHive();
+        if (!state.inHiveZone) {
+            state.inHiveZone = true;
+            openHive();
+        }
+        convertPollen(); // Continuous conversion while in zone
+    } else {
+        if (state.inHiveZone) {
+            state.inHiveZone = false;
+            closeHive();
+        }
     }
 }
 
@@ -582,11 +592,17 @@ function tryHatchEgg(index) {
 function checkShopInteraction() {
     if (!state.shop) return;
     const dist = state.player.position.distanceTo(state.shop.position);
+
     if (dist < 10) {
-        openShop();
-    } else if (dist > 15 && state.isShopOpen) {
-        // Auto close if walked away (though movement is locked, good safety)
-        closeShop();
+        if (!state.inShopZone) {
+            state.inShopZone = true;
+            openShop();
+        }
+    } else {
+        if (state.inShopZone) {
+            state.inShopZone = false;
+            closeShop();
+        }
     }
 }
 
@@ -596,6 +612,13 @@ function convertPollen() {
         state.pollen = 0;
         state.honey += amount;
         updateUI();
+
+        // Visual Feedback
+        uiConversion.innerText = `Converting... +${amount} Honey`;
+        uiConversion.style.opacity = 1;
+        setTimeout(() => {
+            uiConversion.style.opacity = 0;
+        }, 2000);
     }
 }
 

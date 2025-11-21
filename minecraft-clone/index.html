@@ -2,12 +2,41 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Minecraft Clone</title>
     <style>
-        body { margin: 0; }
+        body { margin: 0; background-color: #222; overflow: hidden; }
         canvas { display: block; }
+        #error-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            color: red;
+            font-family: monospace;
+            padding: 20px;
+            display: none;
+            z-index: 9999;
+            white-space: pre-wrap;
+            box-sizing: border-box;
+        }
+        #ui {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            color: white;
+            font-family: sans-serif;
+            pointer-events: none;
+            font-size: 24px;
+            text-shadow: 2px 2px 4px #000;
+        }
     </style>
+    <!-- Polyfill for import maps (important for Safari compatibility) -->
+    <script async src="https://unpkg.com/es-module-shims@1.8.0/dist/es-module-shims.js"></script>
     <script type="importmap">
         {
             "imports": {
@@ -18,6 +47,21 @@
     </script>
 </head>
 <body>
+    <div id="error-overlay"></div>
+    <div id="ui">Click to Start</div>
+    <script>
+        window.onerror = function(message, source, lineno, colno, error) {
+            const overlay = document.getElementById('error-overlay');
+            overlay.style.display = 'block';
+            overlay.textContent += `Error: ${message}\nSource: ${source}:${lineno}:${colno}\nStack: ${error ? error.stack : 'N/A'}\n\n`;
+            console.error(message, error);
+        };
+        window.addEventListener('unhandledrejection', function(event) {
+            const overlay = document.getElementById('error-overlay');
+            overlay.style.display = 'block';
+            overlay.textContent += `Promise Rejection: ${event.reason}\n\n`;
+        });
+    </script>
     <script type="module" src="main.js"></script>
 </body>
 </html>

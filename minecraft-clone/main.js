@@ -2,6 +2,192 @@ import * as THREE from 'three';
 import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
 import { createNoise2D } from 'https://cdn.jsdelivr.net/npm/simplex-noise/dist/esm/simplex-noise.js';
 
+// --- Player Class ---
+class Player {
+    constructor(camera) {
+        this.camera = camera;
+        this.height = 1.8;
+        this.radius = 0.4;
+        this.velocity = new THREE.Vector3();
+        this.onGround = false;
+        this.input = {
+            forward: false,
+            backward: false,
+            left: false,
+            right: false,
+            jump: false
+        };
+
+        // Player's bounding box for collision detection
+        this.box = new THREE.Box3(
+            new THREE.Vector3(-this.radius, 0, -this.radius),
+            new THREE.Vector3(this.radius, this.height, this.radius)
+        );
+
+        this.touch = {
+            joystick: { active: false, startX: 0, startY: 0, currentX: 0, currentY: 0, identifier: -1 },
+            camera: { active: false, startX: 0, startY: 0, prevX: 0, prevY: 0, identifier: -1 },
+        };
+    }
+
+    get position() {
+        return this.camera.position;
+    }
+
+    applyInputs(delta) {
+        const speed = 5.0;
+        const direction = new THREE.Vector3();
+        this.camera.getWorldDirection(direction);
+        direction.y = 0;
+        direction.normalize();
+
+        const right = new THREE.Vector3();
+        right.crossVectors(this.camera.up, direction).normalize();
+
+        if (this.input.forward) this.velocity.addScaledVector(direction, speed * delta);
+        if (this.input.backward) this.velocity.addScaledVector(direction, -speed * delta);
+        if (this.input.left) this.velocity.addScaledVector(right, speed * delta);
+        if (this.input.right) this.velocity.addScaledVector(right, -speed * delta);
+
+        if (this.input.jump && this.onGround) {
+            this.velocity.y += 8.0;
+            this.onGround = false;
+        }
+    }
+
+    update(delta, world) {
+        // Apply gravity
+        this.velocity.y -= 9.8 * 8.0 * delta;
+
+        // Apply friction
+        this.velocity.x *= (1 - 10.0 * delta);
+        this.velocity.z *= (1 - 10.0 * delta);
+
+        this.applyInputs(delta);
+
+        this.position.addScaledVector(this.velocity, delta);
+
+        // Simple collision detection
+        this.onGround = false;
+        const playerBox = this.box.clone().translate(this.position);
+
+        world.children.forEach(mesh => {
+            if (mesh.geometry.type === 'BoxGeometry') {
+                const blockBox = new THREE.Box3().setFromObject(mesh);
+                if (playerBox.intersectsBox(blockBox)) {
+                    const intersection = playerBox.intersect(blockBox);
+                    const size = intersection.getSize(new THREE.Vector3());
+                    const push = new THREE.Vector3();
+
+                    if (size.y > size.x && size.y > size.z) { // Vertical collision
+                        if (playerBox.min.y < blockBox.max.y && this.velocity.y <= 0) {
+                            this.position.y += size.y;
+                            this.velocity.y = 0;
+                            this.onGround = true;
+                        } else {
+                            this.position.y -= size.y;
+                            this.velocity.y = 0;
+                        }
+                    } else { // Horizontal collision
+                        if (size.x > size.z) {
+                           if (playerBox.getCenter(new THREE.Vector3()).x > blockBox.getCenter(new THREE.Vector3()).x) {
+                                this.position.x += size.x;
+                            } else {
+                                this.position.x -= size.x;
+                            }
+                        } else {
+                            if (playerBox.getCenter(new THREE.Vector3()).z > blockBox.getCenter(new THREE.Vector3()).z) {
+                                this.position.z += size.z;
+                            } else {
+                                this.position.z -= size.z;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        // Reset jump input
+        this.input.jump = false;
+    }
+    handleTouch(event) {
+        for (const touch of event.changedTouches) {
+            const isLeftSide = touch.clientX < window.innerWidth / 2;
+
+            switch (event.type) {
+                case 'touchstart':
+                    if (isLeftSide) {
+                        if (!this.touch.joystick.active) {
+                            this.touch.joystick.active = true;
+                            this.touch.joystick.identifier = touch.identifier;
+                            this.touch.joystick.startX = touch.clientX;
+                            this.touch.joystick.startY = touch.clientY;
+                        }
+                    } else {
+                        if (!this.touch.camera.active) {
+                            this.touch.camera.active = true;
+                            this.touch.camera.identifier = touch.identifier;
+                            this.touch.camera.startX = touch.clientX;
+                            this.touch.camera.startY = touch.clientY;
+                            this.touch.camera.prevX = touch.clientX;
+                            this.touch.camera.prevY = touch.clientY;
+                            this.touch.camera.startTime = event.timeStamp;
+                        }
+                    }
+                    break;
+
+                case 'touchmove':
+                    if (isLeftSide) {
+                        if (this.touch.joystick.active && this.touch.joystick.identifier === touch.identifier) {
+                            const deltaX = touch.clientX - this.touch.joystick.startX;
+                            const deltaY = touch.clientY - this.touch.joystick.startY;
+
+                            this.input.forward = deltaY < -10;
+                            this.input.backward = deltaY > 10;
+                            this.input.left = deltaX < -10;
+                            this.input.right = deltaX > 10;
+                        }
+                    } else {
+                        if (this.touch.camera.active && this.touch.camera.identifier === touch.identifier) {
+                            const deltaX = touch.clientX - this.touch.camera.prevX;
+                            const deltaY = touch.clientY - this.touch.camera.prevY;
+
+                            this.camera.rotation.y -= deltaX * 0.002;
+                            this.camera.rotation.x -= deltaY * 0.002;
+                            this.camera.rotation.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, this.camera.rotation.x));
+
+                            this.touch.camera.prevX = touch.clientX;
+                            this.touch.camera.prevY = touch.clientY;
+                        }
+                    }
+                    break;
+
+                case 'touchend':
+                    if (isLeftSide) {
+                        if (this.touch.joystick.identifier === touch.identifier) {
+                            this.touch.joystick.active = false;
+                            this.input.forward = false;
+                            this.input.backward = false;
+                            this.input.left = false;
+                            this.input.right = false;
+                        }
+                    } else {
+                        if (this.touch.camera.identifier === touch.identifier) {
+                            this.touch.camera.active = false;
+                            // Check for tap to jump
+                            const tapDuration = event.timeStamp - this.touch.camera.startTime;
+                            const tapDistance = Math.hypot(touch.clientX - this.touch.camera.startX, touch.clientY - this.touch.camera.startY);
+                            if (tapDistance < 10 && tapDuration < 200) {
+                                this.input.jump = true;
+                            }
+                        }
+                    }
+                    break;
+            }
+        }
+    }
+}
+
 // --- Helper function to create textures ---
 function createBlockTextures() {
     const canvas = document.createElement('canvas');
@@ -42,11 +228,9 @@ const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
 const renderer = new THREE.WebGLRenderer();
 const controls = new PointerLockControls(camera, document.body);
+const player = new Player(camera);
 
 const objects = [];
-const velocity = new THREE.Vector3();
-const direction = new THREE.Vector3();
-let moveForward = false, moveBackward = false, moveLeft = false, moveRight = false, canJump = false;
 let prevTime = performance.now();
 
 function init() {
@@ -80,24 +264,28 @@ function init() {
     document.body.addEventListener('click', () => controls.lock());
     document.addEventListener('keydown', onKeyDown);
     document.addEventListener('keyup', onKeyUp);
+
+    document.addEventListener('touchstart', (e) => player.handleTouch(e));
+    document.addEventListener('touchmove', (e) => player.handleTouch(e));
+    document.addEventListener('touchend', (e) => player.handleTouch(e));
 }
 
 const onKeyDown = (event) => {
     switch (event.code) {
-        case 'KeyW': moveForward = true; break;
-        case 'KeyA': moveLeft = true; break;
-        case 'KeyS': moveBackward = true; break;
-        case 'KeyD': moveRight = true; break;
-        case 'Space': if (canJump) velocity.y += 12; canJump = false; break;
+        case 'KeyW': player.input.forward = true; break;
+        case 'KeyA': player.input.left = true; break;
+        case 'KeyS': player.input.backward = true; break;
+        case 'KeyD': player.input.right = true; break;
+        case 'Space': player.input.jump = true; break;
     }
 };
 
 const onKeyUp = (event) => {
     switch (event.code) {
-        case 'KeyW': moveForward = false; break;
-        case 'KeyA': moveLeft = false; break;
-        case 'KeyS': moveBackward = false; break;
-        case 'KeyD': moveRight = false; break;
+        case 'KeyW': player.input.forward = false; break;
+        case 'KeyA': player.input.left = false; break;
+        case 'KeyS': player.input.backward = false; break;
+        case 'KeyD': player.input.right = false; break;
     }
 };
 
@@ -106,35 +294,11 @@ function animate() {
     const time = performance.now();
     const delta = (time - prevTime) / 1000;
 
-    if (controls.isLocked) {
-        velocity.x -= velocity.x * 10.0 * delta;
-        velocity.z -= velocity.z * 10.0 * delta;
-        velocity.y -= 9.8 * 8.0 * delta;
+    player.update(delta, scene);
 
-        direction.z = Number(moveForward) - Number(moveBackward);
-        direction.x = Number(moveRight) - Number(moveLeft);
-        direction.normalize();
-
-        if (moveForward || moveBackward) velocity.z -= direction.z * 50.0 * delta;
-        if (moveLeft || moveRight) velocity.x -= direction.x * 50.0 * delta;
-
-        const playerPosition = controls.getObject().position;
-        const groundRaycaster = new THREE.Raycaster(playerPosition, new THREE.Vector3(0, -1, 0), 0, 1.1);
-        const intersections = groundRaycaster.intersectObjects(objects);
-
-        if (intersections.length > 0) {
-            velocity.y = Math.max(0, velocity.y);
-            canJump = true;
-        }
-
-        controls.moveRight(-velocity.x * delta);
-        controls.moveForward(-velocity.z * delta);
-        playerPosition.y += (velocity.y * delta);
-
-        if (playerPosition.y < -50) {
-            velocity.y = 0;
-            playerPosition.set(0, 15, 0);
-        }
+    if (player.position.y < -50) {
+        player.velocity.y = 0;
+        player.position.set(0, 15, 0);
     }
 
     prevTime = time;

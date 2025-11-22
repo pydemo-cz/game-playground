@@ -74,7 +74,7 @@ export class Physics {
         this.animationFrameId = requestAnimationFrame(() => this.loop());
 
         // Clear canvas
-        this.ctx.clearRect(0, 0, this.width, this.height);
+        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
         // Render world (to be implemented)
         if (this.customRender) {

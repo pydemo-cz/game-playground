@@ -140,9 +140,16 @@ gameLoop();
 
 // Render Loop
 physics.setRenderCallback((ctx) => {
+    // Apply Global Camera Transform here so ALL drawing matches the logical coordinate system
+    ctx.save();
+    ctx.translate(physics.offsetX, physics.offsetY);
+    ctx.scale(physics.scaleFactor, physics.scaleFactor);
+
     drawMerkur(ctx, physics);
     levelManager.draw(ctx); // Draw Goals
     gameManager.draw(ctx); // Draw Editor Gizmos
+
+    ctx.restore();
 });
 
 physics.start();

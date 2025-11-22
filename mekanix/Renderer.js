@@ -2,11 +2,6 @@ import Matter from 'matter-js';
 
 // Custom renderer logic for "Merkur" style
 export function drawMerkur(ctx, physics) {
-    // Apply Camera/Viewport Transform
-    ctx.save();
-    ctx.translate(physics.offsetX, physics.offsetY);
-    ctx.scale(physics.scaleFactor, physics.scaleFactor);
-
     // Draw World Border (Background for logical area)
     ctx.fillStyle = '#f0f0f0';
     ctx.fillRect(0, 0, physics.logicalWidth, physics.logicalHeight);
@@ -136,5 +131,4 @@ export function drawMerkur(ctx, physics) {
         ctx.stroke();
     }
 
-    ctx.restore(); // End Camera Transform
 }

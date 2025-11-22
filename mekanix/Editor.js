@@ -93,6 +93,9 @@ export class Editor {
 
         if (this.selectedEntity) {
             this.dragStart = pos;
+            this._lastMoveX = pos.x;
+            this._lastMoveY = pos.y;
+
             // Store initial state for relative movement
             if (this.selectedEntity.type === 'platform') {
                 this.initialObjState = {
@@ -107,6 +110,8 @@ export class Editor {
                     y: this.selectedEntity.object.y
                 };
                  this.activeHandle = 'move';
+            } else if (this.selectedEntity.type === 'player_part') {
+                this.activeHandle = 'move';
             }
         }
     }
@@ -126,6 +131,37 @@ export class Editor {
             } else if (this.selectedEntity.type === 'goal') {
                 this.selectedEntity.object.x = this.initialObjState.x + dx;
                 this.selectedEntity.object.y = this.initialObjState.y + dy;
+            } else if (this.selectedEntity.type === 'player_part') {
+                 // Move the whole robot!
+                 // We need to calculate delta from dragStart, but we apply it to ALL bodies relative to their initial positions?
+                 // Or just translate all bodies by (pos - lastPos)?
+                 // Dragging is absolute from start.
+                 // To avoid drift, we should track initial positions of ALL bodies, but that's heavy.
+                 // Simpler: calculate delta since last frame?
+                 // onMove is called with current pos.
+                 // Let's track lastPos in 'move' loop or just use diff from dragStart - (current - prev)?
+                 // No, `dx` here is total delta from dragStart.
+                 // But we can't easily setPosition on all bodies based on one body's initial state unless we stored all initial states.
+
+                 // Approach: Translate all bodies by (dx - prevDx).
+                 // We need to store `prevDx` and `prevDy`.
+                 // Or simpler: use `dragStart` as `lastPos` and update `dragStart` at end of Move?
+                 // But `dragStart` is used for logic.
+
+                 // Let's use a temporary `lastPos` logic.
+                 const lastX = this._lastMoveX || this.dragStart.x;
+                 const lastY = this._lastMoveY || this.dragStart.y;
+
+                 const stepDx = pos.x - lastX;
+                 const stepDy = pos.y - lastY;
+
+                 const playerBodies = this.levelManager.player.bodies;
+                 for (let b of playerBodies) {
+                     Matter.Body.translate(b, { x: stepDx, y: stepDy });
+                 }
+
+                 this._lastMoveX = pos.x;
+                 this._lastMoveY = pos.y;
             }
         } else if (this.activeHandle === 'rotate' && this.selectedEntity.type === 'platform') {
              const center = this.selectedEntity.object.position;
@@ -187,6 +223,8 @@ export class Editor {
     onUp() {
         this.dragStart = null;
         this.activeHandle = null;
+        this._lastMoveX = null;
+        this._lastMoveY = null;
     }
 
     hitTest(pos) {

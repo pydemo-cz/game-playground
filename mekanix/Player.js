@@ -141,4 +141,54 @@ export class Player {
     removeFromWorld(world) {
         Matter.World.remove(world, this.composite);
     }
+
+    exportData() {
+        if (this.bodies.length === 0) return null;
+
+        const anchor = this.bodies[0];
+        const startX = anchor.position.x;
+        const startY = anchor.position.y;
+
+        // Export Parts relative to anchor
+        const parts = this.bodies.map(b => {
+             const w = b._editorData ? b._editorData.w : 20;
+             const h = b._editorData ? b._editorData.h : 100;
+
+             return {
+                 x: b.position.x - startX,
+                 y: b.position.y - startY,
+                 w: w,
+                 h: h,
+                 angle: b.angle
+             };
+        });
+
+        // Export Constraints
+        const bodyIndex = new Map();
+        this.bodies.forEach((b, i) => bodyIndex.set(b.id, i));
+
+        const constraintsData = this.constraints.map(c => {
+             const idxA = bodyIndex.get(c.bodyA.id);
+             const idxB = bodyIndex.get(c.bodyB.id);
+
+             const isMuscle = this.muscles.find(m => m.constraint === c);
+
+             return {
+                 type: isMuscle ? 'muscle' : 'pivot',
+                 bodyA: idxA,
+                 bodyB: idxB,
+                 pointA: c.pointA,
+                 pointB: c.pointB,
+                 length: c.length,
+                 stiffness: c.stiffness,
+                 damping: c.damping
+             };
+        });
+
+        return {
+            startPos: { x: startX, y: startY },
+            parts: parts,
+            constraints: constraintsData
+        };
+    }
 }

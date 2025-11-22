@@ -642,11 +642,20 @@ document.getElementById('restart-btn').addEventListener('click', () => {
     gameState.isGameOver = false;
     gameState.score = 0;
     gameState.lives = 3;
-    gameState.player.x = gameState.width / 2;
-    gameState.player.y = 0;
+
+    // Reset Grid
+    initGrid();
+
+    // Reset Player
+    gameState.player.c = Math.floor(gameState.cols / 2);
+    gameState.player.r = 0;
+    gameState.player.x = gameState.player.c * CELL_SIZE + CELL_SIZE/2;
+    gameState.player.y = gameState.player.r * CELL_SIZE + CELL_SIZE/2;
     gameState.player.dirX = 0;
     gameState.player.dirY = 0;
-    resize(); // Resets grid
+    gameState.player.isDrawing = false;
+    gameState.trail = [];
+
     gameState.enemies = [];
     createEnemy(ENEMY_TYPE_BOUNCER);
     createEnemy(ENEMY_TYPE_BOUNCER);

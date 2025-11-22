@@ -17,18 +17,40 @@ export class Editor {
 
         // Inputs
         this.handleInput = this.handleInput.bind(this);
+
+        // Bind UI Elements
+        this.ui = {
+            panel: document.getElementById('properties-panel'),
+            width: document.getElementById('prop-width'),
+            height: document.getElementById('prop-height'),
+            angle: document.getElementById('prop-angle'),
+            btnHead: document.getElementById('prop-add-start'),
+            btnTail: document.getElementById('prop-add-end'),
+            btnDel: document.getElementById('prop-delete')
+        };
+
+        this.setupUIEvents();
     }
 
     onEnter() {
-        // Add event listeners for editor interaction
-        // We reuse the same canvas, so we need to be careful not to conflict with game inputs
-        // But in Edit Mode, game inputs (Player contract) are disabled by GameManager.
         this.setupInputs();
     }
 
     onExit() {
         this.removeInputs();
-        this.selectedEntity = null;
+        this.selectEntity(null);
+    }
+
+    setupUIEvents() {
+        // Inputs
+        ['width', 'height', 'angle'].forEach(key => {
+            this.ui[key].addEventListener('change', () => this.applyProperties());
+        });
+
+        // Buttons
+        this.ui.btnHead.addEventListener('click', () => this.addConnectedPart('head'));
+        this.ui.btnTail.addEventListener('click', () => this.addConnectedPart('tail'));
+        this.ui.btnDel.addEventListener('click', () => this.deleteSelected());
     }
 
     setupInputs() {
@@ -89,7 +111,9 @@ export class Editor {
 
         // 2. Raycast / Hit Test for Objects
         this.activeHandle = null;
-        this.selectedEntity = this.hitTest(pos);
+        const hit = this.hitTest(pos);
+
+        this.selectEntity(hit);
 
         if (this.selectedEntity) {
             this.dragStart = pos;
@@ -114,6 +138,50 @@ export class Editor {
                 this.activeHandle = 'move';
             }
         }
+    }
+
+    selectEntity(entity) {
+        this.selectedEntity = entity;
+
+        if (entity && entity.type === 'player_part') {
+            this.ui.panel.classList.remove('hidden');
+            this.updatePropertiesUI(entity.object);
+        } else {
+            this.ui.panel.classList.add('hidden');
+        }
+    }
+
+    updatePropertiesUI(body) {
+        const d = body._editorData || { w: 20, h: 100 };
+        this.ui.width.value = d.w;
+        this.ui.height.value = d.h;
+        this.ui.angle.value = Math.round(body.angle * (180/Math.PI));
+    }
+
+    applyProperties() {
+        if (!this.selectedEntity || this.selectedEntity.type !== 'player_part') return;
+
+        const body = this.selectedEntity.object;
+        const w = parseFloat(this.ui.width.value);
+        const h = parseFloat(this.ui.height.value);
+        const angle = parseFloat(this.ui.angle.value) * (Math.PI/180);
+
+        // Update Dimensions if changed
+        // NOTE: Changing dimensions of a connected body in Matter.js is dangerous for constraints unless updated.
+        // But for visual editor we try scale.
+        const currentW = body._editorData.w || 20;
+        const currentH = body._editorData.h || 100;
+
+        if (w !== currentW || h !== currentH) {
+             const sX = w / currentW;
+             const sY = h / currentH;
+             Matter.Body.scale(body, sX, sY);
+             body._editorData.w = w;
+             body._editorData.h = h;
+        }
+
+        // Update Angle
+        Matter.Body.setAngle(body, angle);
     }
 
     onMove(pos) {
@@ -375,45 +443,68 @@ export class Editor {
         });
     }
 
-    addConnectedPart() {
+    addConnectedPart(location = 'tail') {
         if (!this.selectedEntity || this.selectedEntity.type !== 'player_part') {
             alert("Select a robot part first!");
             return;
         }
 
-        // This logic ideally belongs in Player.js or LevelManager, but Editor orchestrates it.
-        // We need to add a new body and a constraint connecting to the selected body.
         const parentBody = this.selectedEntity.object;
         const player = this.levelManager.player;
 
-        // Create new part
-        // Position it slightly offset
         const newW = 20;
         const newH = 100;
-        const x = parentBody.position.x + 20;
-        const y = parentBody.position.y + 20;
+        const parentH = parentBody._editorData ? parentBody._editorData.h : 100;
 
-        const newBody = Matter.Bodies.rectangle(x, y, newW, newH, {
-            collisionFilter: parentBody.collisionFilter, // Same group
+        // Calculate placement based on location
+        // Tail: Bottom of parent (local Y positive)
+        // Head: Top of parent (local Y negative)
+
+        // We need World Coords for creation
+        const angle = parentBody.angle;
+        const dist = parentH/2 + 10; // Offset slightly
+        const sign = location === 'tail' ? 1 : -1;
+
+        const offsetX = Math.sin(angle) * (dist) * sign; // Standard Matter rotation? No, sin/cos depends on 0
+        // Matter rect 0 is horizontal? No, standard rect.
+        // Usually, 0 angle = upright or flat?
+        // We used: width is small (20), length is large (100). So it's a vertical strip if upright.
+        // Vertices check: if angle 0, minx/maxx is width?
+        // Let's assume angle 0 is vertical strip.
+        // Then Y axis matches length.
+
+        const dx = -Math.sin(angle) * (dist * sign); // Actually rotation matrix
+        const dy = Math.cos(angle) * (dist * sign);
+        // Wait, standard rotation: x' = x cos - y sin...
+        // If we move along local Y axis (0, 1) or (0, -1).
+        // local x=0, y=sign*dist.
+        const worldX = parentBody.position.x - Math.sin(angle) * (sign * parentH/2 + sign * newH/2);
+        const worldY = parentBody.position.y + Math.cos(angle) * (sign * parentH/2 + sign * newH/2);
+
+        const newBody = Matter.Bodies.rectangle(worldX, worldY, newW, newH, {
+            collisionFilter: parentBody.collisionFilter,
             chamfer: { radius: 5 },
             density: 0.01,
-            friction: 1.0
+            friction: 1.0,
+            angle: angle // Match parent angle
         });
-        newBody._editorData = { x: 0, y: 0, w: newW, h: newH }; // Simplified data tracking
+        newBody._editorData = { w: newW, h: newH };
 
-        // Add Constraint (Pivot)
+        // Constraints
+        const pivotY = sign * (parentH/2 - 10);
+        const newPivotY = -sign * (newH/2 - 10);
+
         const pivot = Matter.Constraint.create({
             bodyA: parentBody,
             bodyB: newBody,
-            pointA: { x: 0, y: parentBody._editorData.h/2 - 10 }, // End of parent
-            pointB: { x: 0, y: -newH/2 + 10 }, // Start of new
+            pointA: { x: 0, y: pivotY },
+            pointB: { x: 0, y: newPivotY },
             stiffness: 1,
-            length: 0
+            length: 0,
+            render: { visible: true }
         });
 
-        // Add Muscle?
-        // For now just passive joint or default muscle?
-        // Let's add a default muscle
+        // Muscle (midpoint to midpoint)
         const muscle = Matter.Constraint.create({
             bodyA: parentBody,
             bodyB: newBody,
@@ -423,15 +514,37 @@ export class Editor {
             damping: 0.05,
             length: 100
         });
-        player.muscles.push({ constraint: muscle, relaxedLength: 100, contractedLength: 50 });
 
-        // Register with Player
+        player.muscles.push({ constraint: muscle, relaxedLength: 100, contractedLength: 50 });
         player.bodies.push(newBody);
         player.constraints.push(pivot, muscle);
         Matter.Composite.add(player.composite, [newBody, pivot, muscle]);
+    }
 
-        // We need to ensure LevelManager.exportLevel() can handle this new structure.
-        // Currently exportLevel only handles platforms/goal.
-        // Player export is needed.
+    deleteSelected() {
+        if (!this.selectedEntity || this.selectedEntity.type !== 'player_part') return;
+
+        const body = this.selectedEntity.object;
+        const player = this.levelManager.player;
+
+        // 1. Remove Constraints connected to this body
+        const constraintsToRemove = player.constraints.filter(c => c.bodyA === body || c.bodyB === body);
+        constraintsToRemove.forEach(c => {
+            Matter.Composite.remove(player.composite, c);
+            // Remove from player arrays
+            const idxC = player.constraints.indexOf(c);
+            if (idxC > -1) player.constraints.splice(idxC, 1);
+
+            // Remove from muscles
+            const idxM = player.muscles.findIndex(m => m.constraint === c);
+            if (idxM > -1) player.muscles.splice(idxM, 1);
+        });
+
+        // 2. Remove Body
+        Matter.Composite.remove(player.composite, body);
+        const idxB = player.bodies.indexOf(body);
+        if (idxB > -1) player.bodies.splice(idxB, 1);
+
+        this.selectEntity(null);
     }
 }

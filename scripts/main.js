@@ -3,7 +3,8 @@ document.addEventListener('DOMContentLoaded', () => {
         .then(response => response.json())
         .then(data => {
             const gameGrid = document.getElementById('game-grid');
-            data.games.forEach(game => {
+            // Show games in reverse order (newest first)
+            [...data.games].reverse().forEach(game => {
                 const tile = document.createElement('a');
                 tile.href = game.url;
                 tile.classList.add('game-tile');

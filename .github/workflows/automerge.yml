@@ -2,17 +2,17 @@ name: Enable PR automerge
 
 on:
   pull_request:
-    types:
-      - opened
-      - reopened
-      - synchronize
+    types: [opened, reopened, synchronize]
+
+permissions:
+  pull-requests: write
+  contents: write
 
 jobs:
   automerge:
     runs-on: ubuntu-latest
     steps:
       - name: Enable Pull Request Automerge
-        run: gh pr merge --merge --auto "$PR_NUMBER"
         env:
-          GH_TOKEN: ${{ secrets.PAT }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
+          GH_TOKEN: ${{ github.token }}
+        run: gh pr merge --merge --auto "${{ github.event.pull_request.number }}"

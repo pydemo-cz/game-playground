@@ -11,6 +11,13 @@ const RED_FIELD_COLOR = 0xFF0000;
 const BLUE_FIELD_COLOR = 0x0000FF;
 const WHITE_FIELD_COLOR = 0xFFFFFF;
 
+// Field Zones (x, z, width, height)
+const FIELDS = [
+    { type: 'WHITE', color: WHITE_FIELD_COLOR, x: 0, z: 20, w: 30, h: 20 },
+    { type: 'RED', color: RED_FIELD_COLOR, x: -35, z: 20, w: 20, h: 20 },
+    { type: 'BLUE', color: BLUE_FIELD_COLOR, x: 35, z: 20, w: 20, h: 20 }
+];
+
 const TOOLS = [
     { name: "Stick", cost: 0, power: 1, type: 'ALL' },
     { name: "Rake", cost: 100, power: 3, type: 'ALL' },
@@ -67,6 +74,7 @@ const state = {
 const uiPollen = document.getElementById('pollen-count');
 const uiCapacity = document.getElementById('backpack-capacity');
 const uiHoney = document.getElementById('honey-count');
+const uiTickets = document.getElementById('ticket-count');
 const uiConversion = document.getElementById('conversion-msg');
 
 // Modals
@@ -332,7 +340,7 @@ scene.add(ground);
 const hiveGeometry = new THREE.BoxGeometry(8, 8, 8);
 const hiveMaterial = new THREE.MeshStandardMaterial({ color: HIVE_COLOR });
 state.hive = new THREE.Mesh(hiveGeometry, hiveMaterial);
-state.hive.position.set(0, 4, -25); // Move Closer (was -40)
+state.hive.position.set(0, 4, -15); // Move Closer (was -25)
 state.hive.castShadow = true;
 scene.add(state.hive);
 
@@ -627,12 +635,116 @@ state.player.position.y = 1; // Half height so it sits on ground
 state.player.castShadow = true;
 scene.add(state.player);
 
+// --- Backpack ---
+let currentBackpackMesh = null;
+function equipBackpack(packData) {
+    if (currentBackpackMesh) {
+        state.player.remove(currentBackpackMesh);
+    }
+
+    let geo, mat;
+    const name = packData.name;
+
+    if (name.includes("Pouch")) {
+        geo = new THREE.BoxGeometry(0.6, 0.6, 0.3);
+        mat = new THREE.MeshStandardMaterial({ color: 0x8B4513 }); // Brown
+    } else if (name.includes("Satchel")) {
+        geo = new THREE.BoxGeometry(0.8, 0.8, 0.4);
+        mat = new THREE.MeshStandardMaterial({ color: 0xA52A2A }); // Reddish Brown
+    } else if (name.includes("Canister") && !name.includes("Coconut")) {
+        geo = new THREE.CylinderGeometry(0.4, 0.4, 1);
+        mat = new THREE.MeshStandardMaterial({ color: 0xC0C0C0 }); // Silver
+    } else if (name.includes("Porcelain")) {
+        geo = new THREE.CylinderGeometry(0.5, 0.5, 1.2);
+        mat = new THREE.MeshStandardMaterial({ color: 0xFFFFFF }); // White
+    } else if (name.includes("Coconut")) {
+        geo = new THREE.SphereGeometry(0.6);
+        mat = new THREE.MeshStandardMaterial({ color: 0x8B4513 }); // Coconut
+        // Texture details could be added
+    } else if (name.includes("Petal")) {
+        geo = new THREE.TorusGeometry(0.5, 0.2, 8, 16);
+        mat = new THREE.MeshStandardMaterial({ color: 0xFFC0CB }); // Pink
+    }
+
+    if (geo && mat) {
+        currentBackpackMesh = new THREE.Mesh(geo, mat);
+        currentBackpackMesh.position.set(0, 0.2, 0.6); // On back
+        state.player.add(currentBackpackMesh);
+    }
+}
+equipBackpack(BACKPACKS[0]);
+
 // --- Tool ---
-const toolGeometry = new THREE.BoxGeometry(0.2, 0.2, 1);
-const toolMaterial = new THREE.MeshStandardMaterial({ color: 0x8B4513 }); // Brown
-state.tool.mesh = new THREE.Mesh(toolGeometry, toolMaterial);
-state.tool.mesh.position.set(0.5, 0, 0.5); // Offset to side
-state.player.add(state.tool.mesh); // Attach to player
+function equipTool(toolData) {
+    if (state.tool.mesh) {
+        state.player.remove(state.tool.mesh);
+    }
+
+    const handleGeo = new THREE.CylinderGeometry(0.05, 0.05, 1.5);
+    const handleMat = new THREE.MeshStandardMaterial({ color: 0x8B4513 });
+    const mesh = new THREE.Mesh(handleGeo, handleMat);
+    mesh.rotation.x = Math.PI / 2; // Forward
+    mesh.position.set(0.5, 0.5, 0.5);
+
+    // Head
+    if (toolData.name === "Rake") {
+        const headGeo = new THREE.BoxGeometry(0.8, 0.1, 0.1);
+        const head = new THREE.Mesh(headGeo, new THREE.MeshStandardMaterial({ color: 0x555555 }));
+        head.position.y = 0.75; // End of stick
+        mesh.add(head);
+        // Teeth
+        for(let i=-3; i<=3; i+=2) {
+            const tooth = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.2, 0.05), new THREE.MeshStandardMaterial({ color: 0x555555 }));
+            tooth.position.set(i*0.1, -0.1, 0);
+            head.add(tooth);
+        }
+    }
+    else if (toolData.name === "Vacuum") {
+        const vacGeo = new THREE.CylinderGeometry(0.2, 0.2, 0.4);
+        const vac = new THREE.Mesh(vacGeo, new THREE.MeshStandardMaterial({ color: 0xCCCCCC }));
+        vac.rotation.z = Math.PI / 2;
+        vac.position.y = 0.75;
+        mesh.add(vac);
+    }
+    else if (toolData.name === "Dark Scythe") {
+        const bladeGeo = new THREE.TorusGeometry(0.4, 0.05, 4, 10, Math.PI);
+        const bladeMat = new THREE.MeshStandardMaterial({ color: 0xFF0000, emissive: 0x330000 }); // Red/Black
+        const blade = new THREE.Mesh(bladeGeo, bladeMat);
+        blade.position.y = 0.75;
+        blade.position.x = 0.2;
+        blade.rotation.z = Math.PI / 4;
+        mesh.add(blade);
+        // Flames (Simple Particles logic later, for now just a visual block)
+        const flame = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.5), new THREE.MeshStandardMaterial({ color: 0x000000 }));
+        flame.position.y = 0.8;
+        mesh.add(flame);
+    }
+    else if (toolData.name === "Tide Popper") {
+        const headGeo = new THREE.IcosahedronGeometry(0.3);
+        const headMat = new THREE.MeshStandardMaterial({ color: 0x0000FF, transparent: true, opacity: 0.8 });
+        const head = new THREE.Mesh(headGeo, headMat);
+        head.position.y = 0.75;
+        mesh.add(head);
+    }
+    else if (toolData.name === "Gummy Baller") {
+        const headGeo = new THREE.SphereGeometry(0.3);
+        const headMat = new THREE.MeshStandardMaterial({ color: 0x00FF00 }); // Green
+        const head = new THREE.Mesh(headGeo, headMat);
+        head.position.y = 0.75;
+        mesh.add(head);
+        // Pink spots
+        const spot = new THREE.Mesh(new THREE.SphereGeometry(0.1), new THREE.MeshStandardMaterial({ color: 0xFF69B4 }));
+        spot.position.set(0.1, 0.2, 0.1);
+        head.add(spot);
+    }
+    // Stick is just handle (default)
+
+    state.tool.mesh = mesh;
+    state.player.add(state.tool.mesh);
+}
+
+// Initial Equip
+equipTool(TOOLS[0]);
 
 // --- Inputs ---
 window.addEventListener('mousedown', () => {
@@ -850,25 +962,31 @@ function updateCamera() {
 }
 
 function swingTool() {
-    // Check collisions with flowers
-    // Simple distance check from player to flowers
     const playerPos = state.player.position;
     const currentTool = TOOLS[state.currentToolIndex];
     let power = currentTool.power;
 
-    state.flowers.forEach(flower => {
-        const dist = playerPos.distanceTo(flower.mesh.position);
-        if (dist < 2.5) { // Close enough
-
-            // Check Color Multiplier
-            let multiplier = 1;
-            if (currentTool.type === 'RED' && flower.color === RED_FIELD_COLOR) multiplier = 3;
-            if (currentTool.type === 'BLUE' && flower.color === BLUE_FIELD_COLOR) multiplier = 3;
-            if (currentTool.type === 'WHITE' && flower.color === WHITE_FIELD_COLOR) multiplier = 3;
-
-            collectPollen(power * multiplier);
+    // Check if player is in a field
+    let inField = null;
+    for (const field of FIELDS) {
+        const halfW = field.w / 2;
+        const halfH = field.h / 2;
+        if (playerPos.x >= field.x - halfW && playerPos.x <= field.x + halfW &&
+            playerPos.z >= field.z - halfH && playerPos.z <= field.z + halfH) {
+            inField = field;
+            break;
         }
-    });
+    }
+
+    if (inField) {
+        // Apply Multiplier
+        let multiplier = 1;
+        if (currentTool.type === 'RED' && inField.type === 'RED') multiplier = 3;
+        if (currentTool.type === 'BLUE' && inField.type === 'BLUE') multiplier = 3;
+        if (currentTool.type === 'WHITE' && inField.type === 'WHITE') multiplier = 3;
+
+        collectPollen(power * multiplier);
+    }
 }
 
 function collectPollen(amount) {
@@ -884,6 +1002,7 @@ function updateUI() {
     uiPollen.innerText = Math.floor(state.pollen);
     uiCapacity.innerText = state.backpackCapacity;
     uiHoney.innerText = Math.floor(state.honey);
+    uiTickets.innerText = state.tickets;
 }
 
 function updateTool(dt) {

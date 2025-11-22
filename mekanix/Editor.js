@@ -135,7 +135,15 @@ export class Editor {
                 };
                  this.activeHandle = 'move';
             } else if (this.selectedEntity.type === 'player_part') {
-                this.activeHandle = 'move';
+                 this.activeHandle = 'move';
+                 // Also enable gizmos for player parts
+                 this.initialObjState = {
+                    x: this.selectedEntity.object.position.x,
+                    y: this.selectedEntity.object.position.y,
+                    angle: this.selectedEntity.object.angle,
+                    w: this.selectedEntity.object._editorData.w,
+                    h: this.selectedEntity.object._editorData.h
+                };
             }
         }
     }
@@ -146,6 +154,11 @@ export class Editor {
         if (entity && entity.type === 'player_part') {
             this.ui.panel.classList.remove('hidden');
             this.updatePropertiesUI(entity.object);
+        } else if (entity && entity.type === 'joint') {
+            // Show panel for joint? Or different UI?
+            // For now reuse panel but maybe hide dimension inputs
+            this.ui.panel.classList.remove('hidden');
+            // We need to update UI for joint (Stiffness)
         } else {
             this.ui.panel.classList.add('hidden');
         }
@@ -200,23 +213,7 @@ export class Editor {
                 this.selectedEntity.object.x = this.initialObjState.x + dx;
                 this.selectedEntity.object.y = this.initialObjState.y + dy;
             } else if (this.selectedEntity.type === 'player_part') {
-                 // Move the whole robot!
-                 // We need to calculate delta from dragStart, but we apply it to ALL bodies relative to their initial positions?
-                 // Or just translate all bodies by (pos - lastPos)?
-                 // Dragging is absolute from start.
-                 // To avoid drift, we should track initial positions of ALL bodies, but that's heavy.
-                 // Simpler: calculate delta since last frame?
-                 // onMove is called with current pos.
-                 // Let's track lastPos in 'move' loop or just use diff from dragStart - (current - prev)?
-                 // No, `dx` here is total delta from dragStart.
-                 // But we can't easily setPosition on all bodies based on one body's initial state unless we stored all initial states.
-
-                 // Approach: Translate all bodies by (dx - prevDx).
-                 // We need to store `prevDx` and `prevDy`.
-                 // Or simpler: use `dragStart` as `lastPos` and update `dragStart` at end of Move?
-                 // But `dragStart` is used for logic.
-
-                 // Let's use a temporary `lastPos` logic.
+                 // Move the whole robot
                  const lastX = this._lastMoveX || this.dragStart.x;
                  const lastY = this._lastMoveY || this.dragStart.y;
 
@@ -237,7 +234,7 @@ export class Editor {
              const currentAngle = Math.atan2(pos.y - center.y, pos.x - center.x);
              const dAngle = currentAngle - startAngle;
              Matter.Body.setAngle(this.selectedEntity.object, this.initialObjState.angle + dAngle);
-        } else if (this.activeHandle === 'resize' && this.selectedEntity.type === 'platform') {
+        } else if (this.activeHandle === 'resize' && (this.selectedEntity.type === 'platform' || this.selectedEntity.type === 'player_part')) {
             // Simple resizing logic: symmetric or from center?
             // Let's do symmetric resizing (width/height change) based on distance from center
             // Actually, dragging a corner usually changes dimensions.
@@ -263,29 +260,48 @@ export class Editor {
             newW = Math.max(20, newW);
             newH = Math.max(20, newH);
 
-            // Update logic: Matter.js doesn't support arbitrary resizing of rectangles easily without scaling.
-            // Scaling is cumulative. Better to re-create the body or set vertices.
-            // But replacing the body breaks references in the world?
-            // LevelManager stores body in this.platforms. We can update it there.
-            // But Editor holds reference too.
+            const oldW = body._editorData.w;
+            const oldH = body._editorData.h;
 
-            // Matter.Body.setVertices is hard for rectangles (need to calculate vertices).
-            // Easier: update _editorData dimensions, remove old body, add new body, update selection.
-
-            // Optimization: Don't re-create every frame.
-            // Just update visualization or use scale?
-            // Body.scale(scaleX, scaleY) scales from current size.
-            // So we need relative scale.
-
-            const scaleX = newW / body._editorData.w;
-            const scaleY = newH / body._editorData.h;
+            const scaleX = newW / oldW;
+            const scaleY = newH / oldH;
 
             Matter.Body.scale(body, scaleX, scaleY);
 
             // Update stored dims to avoid drift
             body._editorData.w = newW;
             body._editorData.h = newH;
+
+            if (this.selectedEntity.type === 'player_part') {
+                this.updateConnectedConstraints(body, oldW, oldH, newW, newH);
+            }
         }
+    }
+
+    updateConnectedConstraints(body, oldW, oldH, newW, newH) {
+        const player = this.levelManager.player;
+        if (!player) return;
+
+        // Find constraints connected to this body
+        const connected = player.constraints.filter(c => c.bodyA === body || c.bodyB === body);
+
+        connected.forEach(c => {
+            const point = (c.bodyA === body) ? c.pointA : c.pointB;
+            // point is local.
+            // Check if point is at Top/Bottom/Left/Right edge
+            // Allowing some tolerance for float errors
+
+            // Check Y (Top/Bottom)
+            if (Math.abs(Math.abs(point.y) - oldH/2) < 1) {
+                // It was at the edge. Update to new edge.
+                point.y = Math.sign(point.y) * (newH/2);
+            }
+
+            // Check X (Left/Right) - less likely for strips but possible
+            if (Math.abs(Math.abs(point.x) - oldW/2) < 1) {
+                 point.x = Math.sign(point.x) * (newW/2);
+            }
+        });
     }
 
     onUp() {
@@ -305,6 +321,20 @@ export class Editor {
 
         // Check Player Parts
         if (this.levelManager.player) {
+            // Check Joints (Constraints) first
+            const playerConstraints = this.levelManager.player.constraints;
+            for (let c of playerConstraints) {
+                // Only check pivot types (length 0 usually) or if rendered
+                if (c.length > 0 && c.label !== 'Muscle') continue; // Skip muscles if we only want joints?
+                // Actually pivot joints have length 0.
+
+                const pA = Matter.Constraint.pointAWorld(c);
+                const d = Math.hypot(pA.x - pos.x, pA.y - pos.y);
+                if (d < 15) { // 15px radius for joint
+                     return { type: 'joint', object: c };
+                }
+            }
+
             const playerBodies = this.levelManager.player.bodies;
             const hitPlayer = Matter.Query.point(playerBodies, pos)[0];
             if (hitPlayer) {
@@ -323,7 +353,9 @@ export class Editor {
     }
 
     checkGizmoHit(pos) {
-        if (!this.selectedEntity || this.selectedEntity.type !== 'platform') return false;
+        if (!this.selectedEntity) return false;
+        // Only platforms and player parts have gizmos
+        if (this.selectedEntity.type !== 'platform' && this.selectedEntity.type !== 'player_part') return false;
 
         const body = this.selectedEntity.object;
         const angle = body.angle;
@@ -363,8 +395,6 @@ export class Editor {
                 this.activeHandle = 'resize';
                 this.resizeHandleIndex = i;
                 this.dragStart = pos;
-                // Store initial state isn't strictly needed if we scale incrementally,
-                // but safer for future drift correction if we rewrite it.
                 return true;
             }
         }

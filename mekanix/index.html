@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Mekanix</title>
+    <link rel="stylesheet" href="styles.css">
+    <script async src="https://unpkg.com/es-module-shims@1.8.0/dist/es-module-shims.js"></script>
+    <script type="importmap">
+        {
+            "imports": {
+                "matter-js": "https://esm.sh/matter-js@0.19.0"
+            }
+        }
+    </script>
+</head>
+<body>
+    <div id="game-container">
+        <canvas id="world"></canvas>
+        <div id="ui-layer">
+            <div id="level-info">Level <span id="current-level">1</span></div>
+            <button id="reset-btn" class="icon-btn">↺</button>
+        </div>
+        <div id="overlay" class="hidden">
+            <div class="message-box">
+                <h2 id="overlay-title">Level Complete!</h2>
+                <button id="next-level-btn">Next Level</button>
+            </div>
+        </div>
+    </div>
+    <script type="module" src="game.js"></script>
+</body>
+</html>

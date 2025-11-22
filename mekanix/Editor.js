@@ -374,16 +374,18 @@ export class Editor {
 
             ctx.save();
 
-            if (this.selectedEntity.type === 'platform') {
+            // Shared Gizmo drawing logic for things with _editorData (Platform & Player Part)
+            if (this.selectedEntity.type === 'platform' || this.selectedEntity.type === 'player_part') {
                 ctx.translate(obj.position.x, obj.position.y);
                 ctx.rotate(obj.angle);
 
                 // Bounding box
-                ctx.strokeStyle = '#3498db';
+                ctx.strokeStyle = (this.selectedEntity.type === 'player_part') ? '#e74c3c' : '#3498db';
                 ctx.lineWidth = 2;
-                // We use stored dims because body.bounds is AABB
-                const w = obj._editorData.w;
-                const h = obj._editorData.h;
+
+                const w = obj._editorData ? obj._editorData.w : 20;
+                const h = obj._editorData ? obj._editorData.h : 100;
+
                 ctx.strokeRect(-w/2 - 5, -h/2 - 5, w + 10, h + 10);
 
                 // Rotation Handle
@@ -398,7 +400,7 @@ export class Editor {
                 ctx.fill();
 
                 // Resize Handles
-                ctx.fillStyle = '#3498db';
+                ctx.fillStyle = (this.selectedEntity.type === 'player_part') ? '#e74c3c' : '#3498db';
                 const handles = [
                     { x: -w/2, y: -h/2 },
                     { x: w/2, y: -h/2 },
@@ -535,29 +537,52 @@ export class Editor {
     }
 
     deleteSelected() {
-        if (!this.selectedEntity || this.selectedEntity.type !== 'player_part') return;
+        if (!this.selectedEntity) return;
 
-        const body = this.selectedEntity.object;
         const player = this.levelManager.player;
 
-        // 1. Remove Constraints connected to this body
-        const constraintsToRemove = player.constraints.filter(c => c.bodyA === body || c.bodyB === body);
-        constraintsToRemove.forEach(c => {
+        if (this.selectedEntity.type === 'joint') {
+            const c = this.selectedEntity.object;
             Matter.Composite.remove(player.composite, c);
-            // Remove from player arrays
+
             const idxC = player.constraints.indexOf(c);
             if (idxC > -1) player.constraints.splice(idxC, 1);
 
-            // Remove from muscles
             const idxM = player.muscles.findIndex(m => m.constraint === c);
             if (idxM > -1) player.muscles.splice(idxM, 1);
-        });
 
-        // 2. Remove Body
-        Matter.Composite.remove(player.composite, body);
-        const idxB = player.bodies.indexOf(body);
-        if (idxB > -1) player.bodies.splice(idxB, 1);
+            this.selectEntity(null);
+            return;
+        }
 
-        this.selectEntity(null);
+        if (this.selectedEntity.type === 'player_part') {
+            // Check minimum parts
+            if (player.bodies.length <= 2) {
+                alert("Robot must have at least 2 parts!");
+                return;
+            }
+
+            const body = this.selectedEntity.object;
+
+            // 1. Remove Constraints connected to this body
+            const constraintsToRemove = player.constraints.filter(c => c.bodyA === body || c.bodyB === body);
+            constraintsToRemove.forEach(c => {
+                Matter.Composite.remove(player.composite, c);
+                // Remove from player arrays
+                const idxC = player.constraints.indexOf(c);
+                if (idxC > -1) player.constraints.splice(idxC, 1);
+
+                // Remove from muscles
+                const idxM = player.muscles.findIndex(m => m.constraint === c);
+                if (idxM > -1) player.muscles.splice(idxM, 1);
+            });
+
+            // 2. Remove Body
+            Matter.Composite.remove(player.composite, body);
+            const idxB = player.bodies.indexOf(body);
+            if (idxB > -1) player.bodies.splice(idxB, 1);
+
+            this.selectEntity(null);
+        }
     }
 }

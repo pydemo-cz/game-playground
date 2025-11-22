@@ -61,6 +61,10 @@ document.getElementById('tool-add-part').addEventListener('click', () => {
     editor.addConnectedPart();
 });
 
+document.getElementById('tool-delete').addEventListener('click', () => {
+    editor.deleteSelected();
+});
+
 document.getElementById('tool-save').addEventListener('click', () => {
     const data = levelManager.exportLevel();
     localStorage.setItem('mekanix_level_dev', JSON.stringify(data));

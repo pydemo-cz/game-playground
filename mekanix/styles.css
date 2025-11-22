@@ -1,0 +1,116 @@
+:root {
+    --bg-color: #f0f0f0;
+    --ui-color: #333;
+    --accent-color: #ff5722;
+    --metal-color: #7f8c8d;
+    --hole-color: #2c3e50;
+}
+
+body, html {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background-color: var(--bg-color);
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    touch-action: none; /* Prevent default touch actions */
+}
+
+#game-container {
+    position: relative;
+    width: 100%;
+    height: 100%;
+}
+
+canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+#ui-layer {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 20px;
+    box-sizing: border-box;
+}
+
+#level-info {
+    font-size: 24px;
+    font-weight: bold;
+    color: var(--ui-color);
+    pointer-events: auto;
+}
+
+.icon-btn {
+    background: rgba(255, 255, 255, 0.8);
+    border: 2px solid var(--ui-color);
+    border-radius: 50%;
+    width: 50px;
+    height: 50px;
+    font-size: 24px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: auto;
+    align-self: flex-end;
+    transition: transform 0.1s;
+}
+
+.icon-btn:active {
+    transform: scale(0.9);
+}
+
+#overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: auto;
+    z-index: 10;
+}
+
+.hidden {
+    display: none !important;
+}
+
+.message-box {
+    background: white;
+    padding: 30px;
+    border-radius: 10px;
+    text-align: center;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+}
+
+#overlay-title {
+    margin-top: 0;
+    color: var(--ui-color);
+}
+
+button {
+    background: var(--ui-color);
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    font-size: 18px;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+button:hover {
+    opacity: 0.9;
+}

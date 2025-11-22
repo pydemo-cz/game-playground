@@ -126,10 +126,11 @@ button:hover {
     padding: 10px;
     display: flex;
     justify-content: center;
-    gap: 15px;
+    gap: 10px;
     z-index: 50;
     box-sizing: border-box;
     flex-wrap: wrap;
+    height: 60px; /* Fixed height to know overlap */
 }
 
 #editor-toolbar button {

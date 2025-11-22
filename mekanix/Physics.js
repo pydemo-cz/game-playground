@@ -17,6 +17,8 @@ export class Physics {
 
         // Logical Resolution (9:16 aspect ratio)
         this.logicalWidth = 720;
+        // Reserve space at bottom for UI in logical height if we want "Safe Area"?
+        // Or just ensure game elements aren't placed there.
         this.logicalHeight = 1280;
         this.scaleFactor = 1;
         this.offsetX = 0;

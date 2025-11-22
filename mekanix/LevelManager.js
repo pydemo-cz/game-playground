@@ -33,12 +33,14 @@ export class LevelManager {
         }
 
         // 3. Create Player
-        // Player class needs refactoring to accept data definition or we assume "V" for now if data missing
         if (this.currentLevelData.player) {
-             // For now, use standard "V" at start pos if complex data not implemented yet
-             // Or implement the generic builder in Player.js
              const start = this.currentLevelData.player.startPos;
-             this.player = new Player(start.x, start.y, 'V'); // TODO: Pass full structure
+             // If we have parts/constraints data, use it. Otherwise fallback to 'V' (legacy/default)
+             if (this.currentLevelData.player.parts && this.currentLevelData.player.constraints) {
+                 this.player = new Player(start.x, start.y, this.currentLevelData.player);
+             } else {
+                 this.player = new Player(start.x, start.y, 'V');
+             }
              this.player.addToWorld(this.physics.world);
         }
 
@@ -112,19 +114,11 @@ export class LevelManager {
         });
 
         // Player
-        // We need to capture the current structure of the player if it was modified
-        // NOTE: Full player serialization is complex because we need to map constraints indices.
-        // For now, if we added parts in Editor, we rely on the session.
-        // But to Save/Load effectively, we really should implement Player Serialization.
-        // Given time constraints, we might skip full player structure serialization for "Save to JSON"
-        // unless strictly required, but "Editor State Persistence" relies on it.
-        // Let's attempt a basic serialization:
         if (this.player) {
-             // Basic Player Data Update logic here if we were fully implementing it.
-             // For now, we assume the structure is static or defined by initial load,
-             // but since we added "addConnectedPart", we technically have new bodies.
-             // We can't easily serialize generic constraints without an ID map.
-             // We will skip for this iteration to avoid bugs, acknowledging limitation.
+            const playerData = this.player.exportData();
+            if (playerData) {
+                this.currentLevelData.player = playerData;
+            }
         }
 
         return this.currentLevelData;

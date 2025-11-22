@@ -15,8 +15,13 @@ export class Physics {
         this.ctx = this.canvas.getContext('2d');
         this.runner = Matter.Runner.create();
 
-        this.width = window.innerWidth;
-        this.height = window.innerHeight;
+        // Logical Resolution (9:16 aspect ratio)
+        this.logicalWidth = 720;
+        this.logicalHeight = 1280;
+        this.scaleFactor = 1;
+        this.offsetX = 0;
+        this.offsetY = 0;
+
         this.resize();
 
         window.addEventListener('resize', () => this.resize());
@@ -33,10 +38,34 @@ export class Physics {
     }
 
     resize() {
-        this.width = window.innerWidth;
-        this.height = window.innerHeight;
-        this.canvas.width = this.width;
-        this.canvas.height = this.height;
+        const winW = window.innerWidth;
+        const winH = window.innerHeight;
+        const winRatio = winW / winH;
+        const targetRatio = this.logicalWidth / this.logicalHeight;
+
+        // Fit containment
+        if (winRatio > targetRatio) {
+            // Window is wider than target (pillarbox)
+            this.scaleFactor = winH / this.logicalHeight;
+            this.offsetX = (winW - this.logicalWidth * this.scaleFactor) / 2;
+            this.offsetY = 0;
+        } else {
+            // Window is taller than target (letterbox)
+            this.scaleFactor = winW / this.logicalWidth;
+            this.offsetX = 0;
+            this.offsetY = (winH - this.logicalHeight * this.scaleFactor) / 2;
+        }
+
+        this.canvas.width = winW;
+        this.canvas.height = winH;
+    }
+
+    // Helper to convert screen coordinates to logical world coordinates
+    screenToWorld(screenX, screenY) {
+        return {
+            x: (screenX - this.offsetX) / this.scaleFactor,
+            y: (screenY - this.offsetY) / this.scaleFactor
+        };
     }
 
     loop() {

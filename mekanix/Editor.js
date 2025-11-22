@@ -17,19 +17,6 @@ export class Editor {
 
         // Inputs
         this.handleInput = this.handleInput.bind(this);
-
-        // Bind UI Elements
-        this.ui = {
-            panel: document.getElementById('properties-panel'),
-            width: document.getElementById('prop-width'),
-            height: document.getElementById('prop-height'),
-            angle: document.getElementById('prop-angle'),
-            btnHead: document.getElementById('prop-add-start'),
-            btnTail: document.getElementById('prop-add-end'),
-            btnDel: document.getElementById('prop-delete')
-        };
-
-        this.setupUIEvents();
     }
 
     onEnter() {
@@ -39,18 +26,6 @@ export class Editor {
     onExit() {
         this.removeInputs();
         this.selectEntity(null);
-    }
-
-    setupUIEvents() {
-        // Inputs
-        ['width', 'height', 'angle'].forEach(key => {
-            this.ui[key].addEventListener('change', () => this.applyProperties());
-        });
-
-        // Buttons
-        this.ui.btnHead.addEventListener('click', () => this.addConnectedPart('head'));
-        this.ui.btnTail.addEventListener('click', () => this.addConnectedPart('tail'));
-        this.ui.btnDel.addEventListener('click', () => this.deleteSelected());
     }
 
     setupInputs() {
@@ -144,57 +119,14 @@ export class Editor {
                     w: this.selectedEntity.object._editorData.w,
                     h: this.selectedEntity.object._editorData.h
                 };
+            } else if (this.selectedEntity.type === 'joint') {
+                // No gizmo for joint move (yet), maybe stiffness drag?
             }
         }
     }
 
     selectEntity(entity) {
         this.selectedEntity = entity;
-
-        if (entity && entity.type === 'player_part') {
-            this.ui.panel.classList.remove('hidden');
-            this.updatePropertiesUI(entity.object);
-        } else if (entity && entity.type === 'joint') {
-            // Show panel for joint? Or different UI?
-            // For now reuse panel but maybe hide dimension inputs
-            this.ui.panel.classList.remove('hidden');
-            // We need to update UI for joint (Stiffness)
-        } else {
-            this.ui.panel.classList.add('hidden');
-        }
-    }
-
-    updatePropertiesUI(body) {
-        const d = body._editorData || { w: 20, h: 100 };
-        this.ui.width.value = d.w;
-        this.ui.height.value = d.h;
-        this.ui.angle.value = Math.round(body.angle * (180/Math.PI));
-    }
-
-    applyProperties() {
-        if (!this.selectedEntity || this.selectedEntity.type !== 'player_part') return;
-
-        const body = this.selectedEntity.object;
-        const w = parseFloat(this.ui.width.value);
-        const h = parseFloat(this.ui.height.value);
-        const angle = parseFloat(this.ui.angle.value) * (Math.PI/180);
-
-        // Update Dimensions if changed
-        // NOTE: Changing dimensions of a connected body in Matter.js is dangerous for constraints unless updated.
-        // But for visual editor we try scale.
-        const currentW = body._editorData.w || 20;
-        const currentH = body._editorData.h || 100;
-
-        if (w !== currentW || h !== currentH) {
-             const sX = w / currentW;
-             const sY = h / currentH;
-             Matter.Body.scale(body, sX, sY);
-             body._editorData.w = w;
-             body._editorData.h = h;
-        }
-
-        // Update Angle
-        Matter.Body.setAngle(body, angle);
     }
 
     onMove(pos) {
@@ -228,6 +160,35 @@ export class Editor {
                  this._lastMoveX = pos.x;
                  this._lastMoveY = pos.y;
             }
+        } else if (this.selectedEntity.type === 'joint') {
+            // Joint Stiffness Editing (Drag Up/Down or Radial?)
+            // Let's do radial or distance from center
+            const c = this.selectedEntity.object;
+            const pA = Matter.Constraint.pointAWorld(c);
+
+            // Angle from center
+            // let angle = Math.atan2(pos.y - pA.y, pos.x - pA.x);
+            // Normalize angle to 0-1 range?
+
+            // Simpler: Distance from center controls nothing, angle controls value?
+            // Or just Y-axis drag like a fader.
+
+            // Let's use angle mapping to 0-1 (0 to 2PI -> 0 to 1)
+            // Or simple distance check? No.
+
+            // Let's try: Click and drag. Angle determines value.
+            // -PI/2 (Top) = 0, 3PI/2 (Top again) = 1
+
+            let angle = Math.atan2(pos.y - pA.y, pos.x - pA.x);
+            // Rotate so -PI/2 is 0
+            angle += Math.PI/2;
+            if (angle < 0) angle += Math.PI * 2;
+
+            let stiffness = angle / (Math.PI * 2);
+            stiffness = Math.max(0.01, Math.min(1, stiffness));
+
+            c.stiffness = stiffness;
+
         } else if (this.activeHandle === 'rotate' && this.selectedEntity.type === 'platform') {
              const center = this.selectedEntity.object.position;
              const startAngle = Math.atan2(this.dragStart.y - center.y, this.dragStart.x - center.x);
@@ -454,6 +415,28 @@ export class Editor {
                 ctx.beginPath();
                 ctx.arc(obj.x, obj.y, obj.radius + 5, 0, Math.PI*2);
                 ctx.stroke();
+            } else if (this.selectedEntity.type === 'joint') {
+                const c = this.selectedEntity.object;
+                const pA = Matter.Constraint.pointAWorld(c);
+
+                ctx.strokeStyle = '#f1c40f';
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.arc(pA.x, pA.y, 12, 0, Math.PI * 2);
+                ctx.stroke();
+
+                // Drag Handle for Stiffness (Visual Slider)
+                const radius = 30;
+                ctx.beginPath();
+                ctx.arc(pA.x, pA.y, radius, -Math.PI/2, -Math.PI/2 + c.stiffness * Math.PI * 2);
+                ctx.strokeStyle = `rgba(241, 196, 15, 0.5)`;
+                ctx.lineWidth = 6;
+                ctx.stroke();
+
+                ctx.fillStyle = '#333';
+                ctx.font = '12px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText(`Stiffness: ${c.stiffness.toFixed(2)}`, pA.x, pA.y - radius - 10);
             }
 
             ctx.restore();

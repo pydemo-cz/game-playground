@@ -9,6 +9,7 @@ export class Editor {
         this.selectedEntity = null; // { type: 'platform'|'goal', object: Body/Goal }
         this.dragStart = null;
         this.initialObjState = null;
+        this.pendingAttachment = false; // If true, waiting for click on body to attach
 
         // Gizmo handles
         this.gizmoRadius = 15;
@@ -78,7 +79,7 @@ export class Editor {
 
     onDown(pos) {
         // 1. Check Gizmo Handles (if selection exists)
-        if (this.selectedEntity) {
+        if (this.selectedEntity && !this.pendingAttachment) {
             if (this.checkGizmoHit(pos)) {
                 return; // Handled by gizmo
             }
@@ -87,6 +88,23 @@ export class Editor {
         // 2. Raycast / Hit Test for Objects
         this.activeHandle = null;
         const hit = this.hitTest(pos);
+
+        // If pending attachment, check if we hit a valid parent
+        if (this.pendingAttachment) {
+            if (hit && hit.type === 'player_part') {
+                this.createPartAt(hit.object, pos);
+                this.pendingAttachment = false;
+                document.body.style.cursor = 'default';
+                return;
+            } else {
+                // Cancel if clicked elsewhere? Or just ignore?
+                // Let's cancel if clicked on empty space
+                if (!hit) {
+                    this.pendingAttachment = false;
+                    document.body.style.cursor = 'default';
+                }
+            }
+        }
 
         this.selectEntity(hit);
 
@@ -100,7 +118,9 @@ export class Editor {
                 this.initialObjState = {
                     x: this.selectedEntity.object.position.x,
                     y: this.selectedEntity.object.position.y,
-                    angle: this.selectedEntity.object.angle
+                    angle: this.selectedEntity.object.angle,
+                    w: this.selectedEntity.object._editorData.w,
+                    h: this.selectedEntity.object._editorData.h
                 };
                 this.activeHandle = 'move'; // Default to move body on click
             } else if (this.selectedEntity.type === 'goal') {
@@ -196,11 +216,6 @@ export class Editor {
              const dAngle = currentAngle - startAngle;
              Matter.Body.setAngle(this.selectedEntity.object, this.initialObjState.angle + dAngle);
         } else if (this.activeHandle === 'resize' && (this.selectedEntity.type === 'platform' || this.selectedEntity.type === 'player_part')) {
-            // Simple resizing logic: symmetric or from center?
-            // Let's do symmetric resizing (width/height change) based on distance from center
-            // Actually, dragging a corner usually changes dimensions.
-            // We can project the mouse pos onto the local axes of the body.
-
             const body = this.selectedEntity.object;
             const angle = body.angle;
             const cos = Math.cos(-angle);
@@ -210,10 +225,7 @@ export class Editor {
             const dxLocal = (pos.x - body.position.x) * cos - (pos.y - body.position.y) * sin;
             const dyLocal = (pos.x - body.position.x) * sin + (pos.y - body.position.y) * cos;
 
-            // Determine new Width/Height based on which handle was grabbed?
-            // Or just assume we are dragging "outwards".
-            // If handle was TR (positive x, negative y), then w = abs(dxLocal)*2, h = abs(dyLocal)*2
-
+            // Determine new Width/Height based on distance from center * 2 (symmetric resize)
             let newW = Math.abs(dxLocal) * 2;
             let newH = Math.abs(dyLocal) * 2;
 
@@ -224,12 +236,23 @@ export class Editor {
             const oldW = body._editorData.w;
             const oldH = body._editorData.h;
 
-            const scaleX = newW / oldW;
-            const scaleY = newH / oldH;
+            // Only update if size actually changed significantly to avoid jitter
+            if (Math.abs(newW - oldW) < 0.5 && Math.abs(newH - oldH) < 0.5) return;
 
-            Matter.Body.scale(body, scaleX, scaleY);
+            // Robust Resizing using setVertices
+            const currentAngle = body.angle;
 
-            // Update stored dims to avoid drift
+            // Generate new vertices (optionally with chamfer)
+            const chamferRadius = (this.selectedEntity.type === 'player_part') ? 5 : 0;
+            // Create a temporary body to get the correct vertices
+            const dummy = Matter.Bodies.rectangle(0, 0, newW, newH, { chamfer: { radius: chamferRadius } });
+
+            // Set vertices (must reset angle to 0 for correct axis alignment, then restore)
+            Matter.Body.setAngle(body, 0);
+            Matter.Body.setVertices(body, dummy.vertices);
+            Matter.Body.setAngle(body, currentAngle);
+
+            // Update stored dims
             body._editorData.w = newW;
             body._editorData.h = newH;
 
@@ -458,68 +481,94 @@ export class Editor {
         });
     }
 
-    addConnectedPart(location = 'tail') {
-        if (!this.selectedEntity || this.selectedEntity.type !== 'player_part') {
-            alert("Select a robot part first!");
-            return;
-        }
+    addConnectedPart() {
+        // Enter "Pick Place" mode
+        this.pendingAttachment = true;
+        this.selectEntity(null);
+        document.body.style.cursor = 'crosshair';
+        // Optional: Show toast or message "Select a point on a robot part"
+    }
 
-        const parentBody = this.selectedEntity.object;
+    createPartAt(parentBody, worldPos) {
         const player = this.levelManager.player;
 
         const newW = 20;
         const newH = 100;
-        const parentH = parentBody._editorData ? parentBody._editorData.h : 100;
 
-        // Calculate placement based on location
-        // Tail: Bottom of parent (local Y positive)
-        // Head: Top of parent (local Y negative)
-
-        // We need World Coords for creation
+        // 1. Calculate Local Anchor Point on Parent
+        // Inverse transform: (world - pos) rotated by -angle
         const angle = parentBody.angle;
-        const dist = parentH/2 + 10; // Offset slightly
-        const sign = location === 'tail' ? 1 : -1;
+        const dx = worldPos.x - parentBody.position.x;
+        const dy = worldPos.y - parentBody.position.y;
 
-        const offsetX = Math.sin(angle) * (dist) * sign; // Standard Matter rotation? No, sin/cos depends on 0
-        // Matter rect 0 is horizontal? No, standard rect.
-        // Usually, 0 angle = upright or flat?
-        // We used: width is small (20), length is large (100). So it's a vertical strip if upright.
-        // Vertices check: if angle 0, minx/maxx is width?
-        // Let's assume angle 0 is vertical strip.
-        // Then Y axis matches length.
+        const cos = Math.cos(-angle);
+        const sin = Math.sin(-angle);
 
-        const dx = -Math.sin(angle) * (dist * sign); // Actually rotation matrix
-        const dy = Math.cos(angle) * (dist * sign);
-        // Wait, standard rotation: x' = x cos - y sin...
-        // If we move along local Y axis (0, 1) or (0, -1).
-        // local x=0, y=sign*dist.
-        const worldX = parentBody.position.x - Math.sin(angle) * (sign * parentH/2 + sign * newH/2);
-        const worldY = parentBody.position.y + Math.cos(angle) * (sign * parentH/2 + sign * newH/2);
+        const localX = dx * cos - dy * sin;
+        const localY = dx * sin + dy * cos;
 
-        const newBody = Matter.Bodies.rectangle(worldX, worldY, newW, newH, {
+        // 2. Create New Body
+        // Position it so that its "Top" (or one end) is at the anchor point.
+        // Let's say we attach the new part's "Top" (local y = -newH/2 + 10) to this anchor.
+        // We need to calculate the World Position of the new body center.
+
+        // New Body Angle: Let's match parent angle initially? Or random? Match parent is safer.
+        // If matched, then we just translate along the body's axis.
+
+        // anchorWorld = parentPos + rotate(localAnchor)
+        // newBodyPos = anchorWorld - rotate(newBodyLocalAnchor)
+
+        const newBodyLocalAnchorY = -newH/2 + 10; // Top with slight offset
+        const newBodyLocalAnchorX = 0;
+
+        // Vector from New Body Center to Anchor (in new body local space) is (0, -newH/2+10).
+        // So Vector from Anchor to New Body Center is (0, newH/2-10).
+
+        // Rotate this offset by parent angle (since new body matches angle)
+        const offsetDist = (newH/2 - 10);
+        const offsetWorldX = -Math.sin(angle) * offsetDist; // assuming standard upright 0 angle
+        const offsetWorldY = Math.cos(angle) * offsetDist;
+        // Wait, verify rotation again.
+        // If angle=0 (upright), cos=1, sin=0. Y increases downwards.
+        // localY positive is down.
+        // Vector (0, dist). Rotated by 0 is (0, dist).
+        // worldY = anchorY + dist. Correct.
+
+        // anchorWorld is worldPos.
+        const newWorldX = worldPos.x - Math.sin(angle) * 0 + Math.sin(angle) * offsetDist; // wait, this rotation math is tricky without helper
+        // Let's use Matter.Vector.rotate
+
+        const offset = Matter.Vector.rotate({ x: 0, y: offsetDist }, angle);
+
+        const newBody = Matter.Bodies.rectangle(
+            worldPos.x + offset.x,
+            worldPos.y + offset.y,
+            newW, newH, {
             collisionFilter: parentBody.collisionFilter,
             chamfer: { radius: 5 },
             density: 0.01,
             friction: 1.0,
-            angle: angle // Match parent angle
+            angle: angle
         });
         newBody._editorData = { w: newW, h: newH };
 
-        // Constraints
-        const pivotY = sign * (parentH/2 - 10);
-        const newPivotY = -sign * (newH/2 - 10);
-
+        // 3. Create Constraints
         const pivot = Matter.Constraint.create({
             bodyA: parentBody,
             bodyB: newBody,
-            pointA: { x: 0, y: pivotY },
-            pointB: { x: 0, y: newPivotY },
+            pointA: { x: localX, y: localY },
+            pointB: { x: 0, y: newBodyLocalAnchorY },
             stiffness: 1,
             length: 0,
             render: { visible: true }
         });
 
         // Muscle (midpoint to midpoint)
+        // Default muscle length = distance between centers? No, usually we want some slack or specific logic.
+        // Let's just use fixed length for now, or distance.
+        // Centers distance:
+        const dist = Matter.Vector.magnitude(Matter.Vector.sub(newBody.position, parentBody.position));
+
         const muscle = Matter.Constraint.create({
             bodyA: parentBody,
             bodyB: newBody,
@@ -527,10 +576,10 @@ export class Editor {
             pointB: { x: 0, y: 0 },
             stiffness: 0.1,
             damping: 0.05,
-            length: 100
+            length: dist
         });
 
-        player.muscles.push({ constraint: muscle, relaxedLength: 100, contractedLength: 50 });
+        player.muscles.push({ constraint: muscle, relaxedLength: dist, contractedLength: dist * 0.5 });
         player.bodies.push(newBody);
         player.constraints.push(pivot, muscle);
         Matter.Composite.add(player.composite, [newBody, pivot, muscle]);

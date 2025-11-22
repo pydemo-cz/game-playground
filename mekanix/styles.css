@@ -114,3 +114,39 @@ button {
 button:hover {
     opacity: 0.9;
 }
+
+/* Editor Toolbar */
+#editor-toolbar {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    background: rgba(255, 255, 255, 0.9);
+    border-top: 2px solid var(--ui-color);
+    padding: 10px;
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+    z-index: 50;
+    box-sizing: border-box;
+    flex-wrap: wrap;
+}
+
+#editor-toolbar button {
+    font-size: 16px;
+    padding: 8px 16px;
+    background: #34495e;
+}
+
+#editor-toolbar button.active {
+    background: #e74c3c;
+}
+
+.edit-mode #ui-layer {
+    /* Hide Play UI in Edit Mode */
+    pointer-events: none;
+}
+
+.edit-mode #level-info, .edit-mode #reset-btn {
+    opacity: 0.2;
+}

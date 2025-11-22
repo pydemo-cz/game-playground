@@ -1,5 +1,19 @@
+import Matter from 'matter-js';
+
 // Custom renderer logic for "Merkur" style
 export function drawMerkur(ctx, physics) {
+    // Apply Camera/Viewport Transform
+    ctx.save();
+    ctx.translate(physics.offsetX, physics.offsetY);
+    ctx.scale(physics.scaleFactor, physics.scaleFactor);
+
+    // Draw World Border (Background for logical area)
+    ctx.fillStyle = '#f0f0f0';
+    ctx.fillRect(0, 0, physics.logicalWidth, physics.logicalHeight);
+    ctx.strokeStyle = '#ccc';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(0, 0, physics.logicalWidth, physics.logicalHeight);
+
     const bodies = Matter.Composite.allBodies(physics.world);
 
     // Draw Bodies
@@ -101,15 +115,11 @@ export function drawMerkur(ctx, physics) {
 
     // Draw Joints (Bolts)
     const constraints = Matter.Composite.allConstraints(physics.world);
-    ctx.fillStyle = '#e74c3c'; // Red bolt? Or Brass? Let's go Gold/Brass
     ctx.fillStyle = '#f1c40f';
     ctx.strokeStyle = '#d35400';
     ctx.lineWidth = 1;
 
     for (let c of constraints) {
-        // Only draw pivot joints, not muscles (which usually have type='line' in render options or visible=false)
-        // I set visible=true for pivots and visible=false for muscles in Player.js.
-        // Wait, I set muscle visible: false.
         if (c.render && c.render.visible === false) continue;
 
         const pA = Matter.Constraint.pointAWorld(c);
@@ -125,6 +135,6 @@ export function drawMerkur(ctx, physics) {
         ctx.lineTo(pA.x + 3, pA.y);
         ctx.stroke();
     }
-}
 
-import Matter from 'matter-js';
+    ctx.restore(); // End Camera Transform
+}

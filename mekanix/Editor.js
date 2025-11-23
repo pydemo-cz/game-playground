@@ -176,19 +176,21 @@ export class Editor {
             }
         }
 
-        // 2. Check Transform Handles
+        // 2. Check Objects (Hit Test) - Prioritize Object Selection over Gizmos on old object if clicked elsewhere
+        const hit = this.hitTest(pos);
+
+        // 3. Check Transform Handles (Only if hitting current selection or no other hit)
         if (this.selectedEntity) {
+            // If we hit a gizmo on the CURRENT selection, prioritize that.
             if (this.checkGizmoHit(pos)) return;
-            // Check Joint Limit Handles
+             // Check Joint Limit Handles
             if (this.selectedEntity.type === 'joint' && this.selectedEntity.object.angleLimits) {
                 if (this.checkJointLimitHit(pos)) return;
             }
         }
 
-        // 3. Check Objects (Hit Test)
-        const hit = this.hitTest(pos);
-
         if (hit) {
+            // New Selection!
             this.selectEntity(hit);
             this.dragStart = pos;
             this._lastMoveX = pos.x;
@@ -230,12 +232,12 @@ export class Editor {
                 };
                 this.activeHandle = 'move_robot';
             } else if (hit.type === 'joint') {
-                // Joint selection (future expansion for stiffness editor)
                 this.activeHandle = 'move_joint_drag';
             }
         } else {
+            // Hit nothing
             if (this.selectedEntity) {
-                this.selectEntity(null);
+                this.selectEntity(null); // Deselect
             } else {
                 this.showAddPlatformGizmo(pos);
             }
@@ -346,33 +348,39 @@ export class Editor {
     spawnEmptyHoleGizmos(body, holeLoc) {
         const pos = this.getHoleWorldPos(body, holeLoc);
 
+        // Show a "Ghost Part" hint or just the "+" button?
+        // User wants "simple clicking" to assemble.
+        // A "+" button near the hole is good.
+
         this.activeGizmos.push({
-            x: pos.x,
-            y: pos.y - 40,
-            r: 20,
+            x: pos.x, // Draw directly ON the hole for immediacy? Or offset?
+            y: pos.y,
+            r: 15,
             label: '+',
             type: 'add_part',
             render: (ctx, g) => {
-                // Line connecting to hole
-                ctx.beginPath();
-                ctx.moveTo(pos.x, pos.y);
-                ctx.lineTo(g.x, g.y);
-                ctx.strokeStyle = '#2ecc71';
-                ctx.stroke();
+                // Draw a small "ghost" part outline indicating what will happen?
+                // For now, a clear Green "+" circle over the hole.
 
-                ctx.fillStyle = '#2ecc71';
+                // Pulsing effect?
+                const time = Date.now() / 200;
+                const r = g.r + Math.sin(time) * 2;
+
+                ctx.fillStyle = 'rgba(46, 204, 113, 0.8)';
                 ctx.beginPath();
-                ctx.arc(g.x, g.y, g.r, 0, Math.PI*2);
+                ctx.arc(g.x, g.y, r, 0, Math.PI*2);
                 ctx.fill();
+
                 ctx.fillStyle = 'white';
-                ctx.font = '24px Arial';
+                ctx.font = '20px Arial';
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
-                ctx.fillText('+', g.x, g.y);
+                ctx.fillText('+', g.x, g.y + 2); // Slight offset for vertical align
             },
             callback: () => {
                 this.addPartAtHole(body, holeLoc);
-                this.selectEntity(null); // Deselect after adding
+                // Don't deselect! We might want to keep adding or edit the new part immediately.
+                // Actually, select the NEW part so user can rotate/resize it.
             }
         });
     }
@@ -619,43 +627,40 @@ export class Editor {
     }
 
     addPartAtHole(parentBody, holeLoc) {
-        // NOTE: This method is now required and implemented correctly.
         const player = this.levelManager.player;
-        const newW = 100;
-        const newH = 20;
+
+        // Default new part dimensions (Vertical strip)
+        const newPartW = 20;
+        const newPartH = 100;
+
+        // We want to attach at a hole near the END of the new part to extend the structure.
+        // E.g. Top hole at y = -30 (relative to center 0,0 for h=100).
+        // (Assuming 20px hole spacing, holes at -30, -10, 10, 30 usually for 4 holes?
+        //  Renderer logic: availableLen = 100-30=70. count=4. startY=-30. i=0 => -30.)
+        const newAnchorY = -30;
+        const newAnchorX = 0;
+
+        // Position Logic:
+        // We want the new part to align with the parent's angle (extending it).
+        // OR extend at 180 degrees?
+        // Let's match parent angle for "extension".
         const angle = parentBody.angle;
 
-        // Hole World Position
+        // Calculate World Position of the Parent's Hole
         const hx = holeLoc.x * Math.cos(angle) - holeLoc.y * Math.sin(angle);
         const hy = holeLoc.x * Math.sin(angle) + holeLoc.y * Math.cos(angle);
         const holeWorldX = parentBody.position.x + hx;
         const holeWorldY = parentBody.position.y + hy;
 
-        // Position new part so its hole (e.g., at top) aligns with parent's hole.
-        // Let's assume new part has hole at (0, -40) relative to center (like DEFAULT_LEVEL)
-        // newH = 20, center is (0,0). Top edge at y=-10?
-        // Wait, w=100, h=20. It's a long bar horizontally?
-        // Or vertically? w=20, h=100.
-        // Let's create a standard vertical part: w=20, h=100.
-        // Hole at (0, -30) (relative to center)
-        const newPartW = 20;
-        const newPartH = 100;
-        const newAnchorY = -30; // 20px from top
+        // Calculate Body Position for New Part
+        // WorldPos = NewBodyPos + Rotate(NewAnchor)
+        // NewBodyPos = WorldPos - Rotate(NewAnchor)
 
-        // We want: NewBodyPos + rotate(newAnchor) = HoleWorldPos
-        // NewBodyPos = HoleWorldPos - rotate(newAnchor)
+        const cos = Math.cos(angle);
+        const sin = Math.sin(angle);
 
-        // Let's keep angle same as parent for now (extended straight)
-        // Or +90 degrees? Let's do same angle.
-        const newAngle = angle;
-        const cos = Math.cos(newAngle);
-        const sin = Math.sin(newAngle);
-
-        const anchorX = 0;
-        const anchorY = newAnchorY;
-
-        const rotAnchorX = anchorX * cos - anchorY * sin;
-        const rotAnchorY = anchorX * sin + anchorY * cos;
+        const rotAnchorX = newAnchorX * cos - newAnchorY * sin;
+        const rotAnchorY = newAnchorX * sin + newAnchorY * cos;
 
         const newBodyX = holeWorldX - rotAnchorX;
         const newBodyY = holeWorldY - rotAnchorY;
@@ -663,19 +668,20 @@ export class Editor {
         const newBody = Matter.Bodies.rectangle(
             newBodyX, newBodyY,
             newPartW, newPartH, {
-            collisionFilter: parentBody.collisionFilter, // Should share group to allow overlap
+            collisionFilter: parentBody.collisionFilter, // Shared collision group for overlap
             chamfer: { radius: 5 },
             density: 0.01,
             friction: 1.0,
-            angle: newAngle
+            angle: angle
         });
         newBody._editorData = { w: newPartW, h: newPartH };
 
         const pivot = Matter.Constraint.create({
+            label: 'pivot', // Ensure it renders as a bolt
             bodyA: parentBody,
             bodyB: newBody,
             pointA: { x: holeLoc.x, y: holeLoc.y },
-            pointB: { x: anchorX, y: anchorY },
+            pointB: { x: newAnchorX, y: newAnchorY },
             stiffness: 1,
             length: 0,
             render: { visible: true }
@@ -684,6 +690,8 @@ export class Editor {
         player.bodies.push(newBody);
         player.constraints.push(pivot);
         Matter.Composite.add(player.composite, [newBody, pivot]);
+
+        // Select the new part immediately
         this.selectEntity({ type: 'player_part', object: newBody });
     }
 
@@ -924,31 +932,54 @@ export class Editor {
     handleJointDrag(pos) {
         const c = this.selectedEntity.object;
 
-        // Find nearest hole on BodyA
+        // 1. Find the nearest hole on BodyA (the "anchor" or parent) relative to the mouse cursor
+        // We use the mouse position to pick which hole on A we want to attach to.
         const bestHoleA = this.findNearestHole(c.bodyA, pos);
+
+        // 2. We ALSO want to pick which hole on BodyB we are using.
+        // Since BodyB moves WITH the mouse (conceptually), we check which hole on BodyB
+        // is closest to the *current joint location* or the mouse?
+        // If we drag the joint, we are dragging the connection point.
+        // Let's assume we are dragging the pivot point in world space.
+
+        // We want the hole on BodyB that is closest to the *target position* (bestHoleA in world space).
+        // OR we can allow the user to shift the connection to a different hole on BodyB.
+
+        // Let's do this:
+        // Identify nearest hole on BodyA to Cursor.
+        // Identify nearest hole on BodyB to Cursor.
+
+        const bestHoleB = this.findNearestHole(c.bodyB, pos);
+
         if (bestHoleA) {
             c.pointA = bestHoleA;
         }
-
-        // Find nearest hole on BodyB
-        const bestHoleB = this.findNearestHole(c.bodyB, pos);
         if (bestHoleB) {
             c.pointB = bestHoleB;
         }
 
-        // Snap bodies together to avoid explosion?
-        // Let physics handle it? Or teleport BodyB?
-        // Teleporting B to match A's anchor is safer.
+        // 3. STRICT ALIGNMENT (Teleport BodyB)
+        // Ensure BodyB is positioned so that holeB overlaps perfectly with holeA.
         if (bestHoleA && bestHoleB) {
              const anchorAWorld = this.getHoleWorldPos(c.bodyA, bestHoleA);
-             const anchorBWorld = this.getHoleWorldPos(c.bodyB, bestHoleB); // Where B's hole IS currently
 
-             // We want B's hole to BE at anchorAWorld.
-             // Delta:
-             const dx = anchorAWorld.x - anchorBWorld.x;
-             const dy = anchorAWorld.y - anchorBWorld.y;
+             // Calculate where BodyB SHOULD be.
+             // WorldPos(HoleB) = BodyB.pos + Rotate(HoleB_local)
+             // We want WorldPos(HoleB) == anchorAWorld
+             // BodyB.pos = anchorAWorld - Rotate(HoleB_local)
 
-             Matter.Body.translate(c.bodyB, { x: dx, y: dy });
+             const angleB = c.bodyB.angle;
+             const hx = bestHoleB.x * Math.cos(angleB) - bestHoleB.y * Math.sin(angleB);
+             const hy = bestHoleB.x * Math.sin(angleB) + bestHoleB.y * Math.cos(angleB);
+
+             Matter.Body.setPosition(c.bodyB, {
+                 x: anchorAWorld.x - hx,
+                 y: anchorAWorld.y - hy
+             });
+
+             // Also reset velocity to prevent physics explosions
+             Matter.Body.setVelocity(c.bodyB, { x: 0, y: 0 });
+             Matter.Body.setAngularVelocity(c.bodyB, 0);
         }
     }
 
@@ -1082,10 +1113,18 @@ export class Editor {
         const connected = player.constraints.filter(c => c.bodyA === body || c.bodyB === body);
 
         connected.forEach(c => {
-            const point = (c.bodyA === body) ? c.pointA : c.pointB;
+            const isBodyA = (c.bodyA === body);
+            const point = isBodyA ? c.pointA : c.pointB;
             const { holes } = getHolePositions(body);
+
+            // Find the NEW nearest valid hole for the existing constraint attachment
             let bestHole = null;
             let minD = Infinity;
+
+            // We compare the OLD local point to the NEW valid holes
+            // But wait, the old local point might now be "off the body" relative to center.
+            // We want to snap to the physically closest hole in the NEW layout.
+
             for(let h of holes) {
                 const d = Math.hypot(h.x - point.x, h.y - point.y);
                 if (d < minD) {
@@ -1093,9 +1132,36 @@ export class Editor {
                     bestHole = h;
                 }
             }
-            if (bestHole && minD < 25) {
+
+            // Force snap even if distance is large, or maybe just if relatively close?
+            // If the body shrunk significantly, the old point might be way outside.
+            // We should snap to the nearest available hole to keep it attached.
+            if (bestHole) {
                 point.x = bestHole.x;
                 point.y = bestHole.y;
+
+                // If this is a pivot, we must also realign the OTHER body to maintain connection
+                // because the anchor point on THIS body moved.
+                if (c.label === 'pivot' || !c.label) {
+                     // We need to move the OTHER body so its anchor matches THIS body's new anchor world pos.
+                     const otherBody = isBodyA ? c.bodyB : c.bodyA;
+                     const otherPoint = isBodyA ? c.pointB : c.pointA;
+
+                     // Target World Pos = Body.pos + Rotate(point)
+                     const anchorWorld = this.getHoleWorldPos(body, point);
+
+                     // OtherBody New Pos = Target World - Rotate(otherPoint)
+                     const angleOther = otherBody.angle;
+                     const hx = otherPoint.x * Math.cos(angleOther) - otherPoint.y * Math.sin(angleOther);
+                     const hy = otherPoint.x * Math.sin(angleOther) + otherPoint.y * Math.cos(angleOther);
+
+                     Matter.Body.setPosition(otherBody, {
+                         x: anchorWorld.x - hx,
+                         y: anchorWorld.y - hy
+                     });
+
+                     Matter.Body.setVelocity(otherBody, { x: 0, y: 0 });
+                }
             }
         });
     }

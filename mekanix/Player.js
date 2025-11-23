@@ -53,6 +53,9 @@ export class Player {
 
             const constraint = Matter.Constraint.create(opts);
 
+            // Tag the constraint for the Renderer
+            constraint.label = c.type || 'pivot';
+
             if (c.angleLimits) {
                 constraint.angleLimits = { ...c.angleLimits };
             }
@@ -98,6 +101,7 @@ export class Player {
         Matter.Body.setAngle(legB, Math.PI / 6);
 
         const pivot = Matter.Constraint.create({
+            label: 'pivot',
             bodyA: legA,
             pointA: { x: length/2 - 10, y: 0 },
             bodyB: legB,
@@ -107,6 +111,7 @@ export class Player {
         });
 
         const muscle = Matter.Constraint.create({
+            label: 'muscle',
             bodyA: legA,
             pointA: { x: 0, y: 0 },
             bodyB: legB,

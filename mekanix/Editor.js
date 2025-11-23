@@ -633,19 +633,32 @@ export class Editor {
         const newPartW = 20;
         const newPartH = 100;
 
-        // We want to attach at a hole near the END of the new part to extend the structure.
-        // E.g. Top hole at y = -30 (relative to center 0,0 for h=100).
-        // (Assuming 20px hole spacing, holes at -30, -10, 10, 30 usually for 4 holes?
-        //  Renderer logic: availableLen = 100-30=70. count=4. startY=-30. i=0 => -30.)
-        const newAnchorY = -30;
-        const newAnchorX = 0;
-
-        // Position Logic:
-        // We want the new part to align with the parent's angle (extending it).
-        // OR extend at 180 degrees?
-        // Let's match parent angle for "extension".
+        // Create the body FIRST to get its holes dynamically
+        // We want to align the parent's angle (extension).
         const angle = parentBody.angle;
 
+        const newBody = Matter.Bodies.rectangle(
+            0, 0, // Temp pos
+            newPartW, newPartH, {
+            collisionFilter: parentBody.collisionFilter, // Shared collision group for overlap
+            chamfer: { radius: 5 },
+            density: 0.01,
+            friction: 1.0,
+            angle: angle
+        });
+        newBody._editorData = { w: newPartW, h: newPartH };
+
+        // Determine anchor on new body (First/Top hole)
+        const newBodyHoles = getHolePositions(newBody).holes;
+        // Prefer the one with min Y (top)
+        let bestHole = newBodyHoles[0];
+        for(let h of newBodyHoles) {
+            if (h.y < bestHole.y) bestHole = h;
+        }
+        const newAnchorX = bestHole.x;
+        const newAnchorY = bestHole.y;
+
+        // Position Logic:
         // Calculate World Position of the Parent's Hole
         const hx = holeLoc.x * Math.cos(angle) - holeLoc.y * Math.sin(angle);
         const hy = holeLoc.x * Math.sin(angle) + holeLoc.y * Math.cos(angle);
@@ -665,16 +678,8 @@ export class Editor {
         const newBodyX = holeWorldX - rotAnchorX;
         const newBodyY = holeWorldY - rotAnchorY;
 
-        const newBody = Matter.Bodies.rectangle(
-            newBodyX, newBodyY,
-            newPartW, newPartH, {
-            collisionFilter: parentBody.collisionFilter, // Shared collision group for overlap
-            chamfer: { radius: 5 },
-            density: 0.01,
-            friction: 1.0,
-            angle: angle
-        });
-        newBody._editorData = { w: newPartW, h: newPartH };
+        // Update newBody position
+        Matter.Body.setPosition(newBody, { x: newBodyX, y: newBodyY });
 
         const pivot = Matter.Constraint.create({
             label: 'pivot', // Ensure it renders as a bolt
@@ -690,6 +695,9 @@ export class Editor {
         player.bodies.push(newBody);
         player.constraints.push(pivot);
         Matter.Composite.add(player.composite, [newBody, pivot]);
+
+        // Final Validation to ensure perfect alignment
+        this.validateJoint(pivot);
 
         // Select the new part immediately
         this.selectEntity({ type: 'player_part', object: newBody });
@@ -932,25 +940,13 @@ export class Editor {
     handleJointDrag(pos) {
         const c = this.selectedEntity.object;
 
-        // 1. Find the nearest hole on BodyA (the "anchor" or parent) relative to the mouse cursor
-        // We use the mouse position to pick which hole on A we want to attach to.
+        // 1. Find nearest hole on BodyA to the cursor
         const bestHoleA = this.findNearestHole(c.bodyA, pos);
 
-        // 2. We ALSO want to pick which hole on BodyB we are using.
-        // Since BodyB moves WITH the mouse (conceptually), we check which hole on BodyB
-        // is closest to the *current joint location* or the mouse?
-        // If we drag the joint, we are dragging the connection point.
-        // Let's assume we are dragging the pivot point in world space.
-
-        // We want the hole on BodyB that is closest to the *target position* (bestHoleA in world space).
-        // OR we can allow the user to shift the connection to a different hole on BodyB.
-
-        // Let's do this:
-        // Identify nearest hole on BodyA to Cursor.
-        // Identify nearest hole on BodyB to Cursor.
-
+        // 2. Find nearest hole on BodyB to the cursor
         const bestHoleB = this.findNearestHole(c.bodyB, pos);
 
+        // 3. Update anchors if a valid hole was found
         if (bestHoleA) {
             c.pointA = bestHoleA;
         }
@@ -958,29 +954,9 @@ export class Editor {
             c.pointB = bestHoleB;
         }
 
-        // 3. STRICT ALIGNMENT (Teleport BodyB)
-        // Ensure BodyB is positioned so that holeB overlaps perfectly with holeA.
-        if (bestHoleA && bestHoleB) {
-             const anchorAWorld = this.getHoleWorldPos(c.bodyA, bestHoleA);
-
-             // Calculate where BodyB SHOULD be.
-             // WorldPos(HoleB) = BodyB.pos + Rotate(HoleB_local)
-             // We want WorldPos(HoleB) == anchorAWorld
-             // BodyB.pos = anchorAWorld - Rotate(HoleB_local)
-
-             const angleB = c.bodyB.angle;
-             const hx = bestHoleB.x * Math.cos(angleB) - bestHoleB.y * Math.sin(angleB);
-             const hy = bestHoleB.x * Math.sin(angleB) + bestHoleB.y * Math.cos(angleB);
-
-             Matter.Body.setPosition(c.bodyB, {
-                 x: anchorAWorld.x - hx,
-                 y: anchorAWorld.y - hy
-             });
-
-             // Also reset velocity to prevent physics explosions
-             Matter.Body.setVelocity(c.bodyB, { x: 0, y: 0 });
-             Matter.Body.setAngularVelocity(c.bodyB, 0);
-        }
+        // 4. Force Validation & Alignment immediately
+        // This ensures visual feedback is instant and correct
+        this.validateJoint(c);
     }
 
     findNearestHole(body, pos) {
@@ -1111,62 +1087,72 @@ export class Editor {
         if (!player) return;
 
         const connected = player.constraints.filter(c => c.bodyA === body || c.bodyB === body);
+        connected.forEach(c => this.validateJoint(c));
+    }
 
-        connected.forEach(c => {
-            const isBodyA = (c.bodyA === body);
-            const point = isBodyA ? c.pointA : c.pointB;
-            const { holes } = getHolePositions(body);
+    validateJoint(c) {
+        // Enforce that joint anchors (pointA/pointB) are valid holes on their respective bodies
+        if (c.label === 'muscle') return; // Muscles might not need strict hole snapping? Or yes? Usually pivots.
 
-            // Find the NEW nearest valid hole for the existing constraint attachment
-            let bestHole = null;
-            let minD = Infinity;
+        this._snapAnchorToNearestHole(c.bodyA, c.pointA);
+        this._snapAnchorToNearestHole(c.bodyB, c.pointB);
 
-            // We compare the OLD local point to the NEW valid holes
-            // But wait, the old local point might now be "off the body" relative to center.
-            // We want to snap to the physically closest hole in the NEW layout.
+        // After snapping local anchors, we must ensure physical alignment.
+        // We assume BodyA is the "anchor" (or priority) and move BodyB to match.
+        // Or if one is static?
 
-            for(let h of holes) {
-                const d = Math.hypot(h.x - point.x, h.y - point.y);
-                if (d < minD) {
-                    minD = d;
-                    bestHole = h;
-                }
+        const pAWorld = this.getHoleWorldPos(c.bodyA, c.pointA);
+        const pBWorld = this.getHoleWorldPos(c.bodyB, c.pointB);
+
+        // If they are misaligned > 1px, snap them.
+        if (Math.hypot(pAWorld.x - pBWorld.x, pAWorld.y - pBWorld.y) > 1) {
+            // Move BodyB
+            const angleB = c.bodyB.angle;
+            const hx = c.pointB.x * Math.cos(angleB) - c.pointB.y * Math.sin(angleB);
+            const hy = c.pointB.x * Math.sin(angleB) + c.pointB.y * Math.cos(angleB);
+
+            Matter.Body.setPosition(c.bodyB, {
+                x: pAWorld.x - hx,
+                y: pAWorld.y - hy
+            });
+            Matter.Body.setVelocity(c.bodyB, { x: 0, y: 0 });
+            Matter.Body.setAngularVelocity(c.bodyB, 0);
+        }
+    }
+
+    _snapAnchorToNearestHole(body, point) {
+        const { holes } = getHolePositions(body);
+        let bestHole = null;
+        let minD = Infinity;
+
+        // Find nearest hole to the current local point
+        for(let h of holes) {
+            const d = Math.hypot(h.x - point.x, h.y - point.y);
+            if (d < minD) {
+                minD = d;
+                bestHole = h;
             }
+        }
 
-            // Force snap even if distance is large, or maybe just if relatively close?
-            // If the body shrunk significantly, the old point might be way outside.
-            // We should snap to the nearest available hole to keep it attached.
-            if (bestHole) {
-                point.x = bestHole.x;
-                point.y = bestHole.y;
-
-                // If this is a pivot, we must also realign the OTHER body to maintain connection
-                // because the anchor point on THIS body moved.
-                if (c.label === 'pivot' || !c.label) {
-                     // We need to move the OTHER body so its anchor matches THIS body's new anchor world pos.
-                     const otherBody = isBodyA ? c.bodyB : c.bodyA;
-                     const otherPoint = isBodyA ? c.pointB : c.pointA;
-
-                     // Target World Pos = Body.pos + Rotate(point)
-                     const anchorWorld = this.getHoleWorldPos(body, point);
-
-                     // OtherBody New Pos = Target World - Rotate(otherPoint)
-                     const angleOther = otherBody.angle;
-                     const hx = otherPoint.x * Math.cos(angleOther) - otherPoint.y * Math.sin(angleOther);
-                     const hy = otherPoint.x * Math.sin(angleOther) + otherPoint.y * Math.cos(angleOther);
-
-                     Matter.Body.setPosition(otherBody, {
-                         x: anchorWorld.x - hx,
-                         y: anchorWorld.y - hy
-                     });
-
-                     Matter.Body.setVelocity(otherBody, { x: 0, y: 0 });
-                }
-            }
-        });
+        // If found (always should if body has holes), update point
+        if (bestHole) {
+            point.x = bestHole.x;
+            point.y = bestHole.y;
+        }
     }
 
     onUp() {
+        // Enforce constraint validity after dragging
+        if (this.activeHandle === 'drag_joint' && this.selectedEntity && this.selectedEntity.type === 'joint') {
+            this.validateJoint(this.selectedEntity.object);
+        } else if (this.activeHandle === 'move_robot' || this.activeHandle === 'move') {
+             // If we moved the whole robot, or parts, check all constraints?
+             // Usually they move together, but validation is cheap enough for single robots.
+             if (this.levelManager.player) {
+                  this.levelManager.player.constraints.forEach(c => this.validateJoint(c));
+             }
+        }
+
         this.dragStart = null;
         this.activeHandle = null;
         this._lastMoveX = null;

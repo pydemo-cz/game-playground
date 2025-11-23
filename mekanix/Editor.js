@@ -7,30 +7,23 @@ export class Editor {
         this.physics = gameManager.physics;
         this.levelManager = gameManager.levelManager;
 
-        this.selectedEntity = null; // { type: 'platform'|'goal'|'player_part', object: Body/Goal }
+        this.selectedEntity = null; // { type: 'platform'|'goal'|'player_part'|'whole_robot', object: Body|PlayerObject }
         this.dragStart = null;
         this.initialObjState = null;
+        this.activeGizmos = [];
 
-        // Gizmo handles
-        this.activeHandle = null; // 'move' | 'rotate' | 'resize'
+        this.activeHandle = null;
         this.resizeHandleIndex = -1;
 
-        // Context Menu State
-        this.contextMenu = document.getElementById('context-menu');
-        this.contextMenuList = document.getElementById('context-menu-list');
-        this.isContextMenuOpen = false;
-
-        // System Menu Binding
         this.systemMenu = document.getElementById('system-menu');
         this.menuBtn = document.getElementById('menu-btn');
         this.isSystemMenuOpen = false;
 
         this.menuBtn.addEventListener('click', (e) => {
-            e.stopPropagation(); // Don't trigger canvas clicks
+            e.stopPropagation();
             this.toggleSystemMenu();
         });
 
-        // System Menu Items
         document.getElementById('menu-reset').addEventListener('click', () => {
             this.levelManager.resetLevel();
             this.closeSystemMenu();
@@ -53,21 +46,15 @@ export class Editor {
             this.closeSystemMenu();
         });
 
-        // UI Binding
         this.modeBtn = document.getElementById('mode-toggle');
         this.modeBtn.addEventListener('click', () => {
              this.gm.toggleMode();
              this.updateModeBtn();
         });
 
-        // Inputs
         this.handleInput = this.handleInput.bind(this);
 
-        // Hide menus on click elsewhere
         document.addEventListener('click', (e) => {
-            if (this.isContextMenuOpen && !this.contextMenu.contains(e.target)) {
-                this.closeContextMenu();
-            }
             if (this.isSystemMenuOpen && !this.systemMenu.contains(e.target) && e.target !== this.menuBtn) {
                 this.closeSystemMenu();
             }
@@ -106,7 +93,6 @@ export class Editor {
     onExit() {
         this.removeInputs();
         this.selectEntity(null);
-        this.closeContextMenu();
         this.closeSystemMenu();
         this.updateModeBtn();
     }
@@ -116,9 +102,7 @@ export class Editor {
         canvas.addEventListener('mousedown', this.handleInput);
         canvas.addEventListener('mousemove', this.handleInput);
         canvas.addEventListener('mouseup', this.handleInput);
-        // Prevent click from bubbling to document (which closes the menu)
         canvas.addEventListener('click', this.stopClickPropagation);
-
         canvas.addEventListener('touchstart', this.handleInput, { passive: false });
         canvas.addEventListener('touchmove', this.handleInput, { passive: false });
         canvas.addEventListener('touchend', this.handleInput);
@@ -130,7 +114,6 @@ export class Editor {
         canvas.removeEventListener('mousemove', this.handleInput);
         canvas.removeEventListener('mouseup', this.handleInput);
         canvas.removeEventListener('click', this.stopClickPropagation);
-
         canvas.removeEventListener('touchstart', this.handleInput);
         canvas.removeEventListener('touchmove', this.handleInput);
         canvas.removeEventListener('touchend', this.handleInput);
@@ -141,8 +124,7 @@ export class Editor {
     }
 
     handleInput(e) {
-        // Allow default only if clicking UI elements (like buttons)
-        if (e.target.tagName === 'BUTTON' || e.target.closest('#context-menu') || e.target.closest('#system-menu')) return;
+        if (e.target.tagName === 'BUTTON' || e.target.closest('#system-menu')) return;
 
         e.preventDefault();
         const type = e.type;
@@ -157,7 +139,6 @@ export class Editor {
             y = e.clientY;
         }
 
-        // Convert to World Coordinates
         const worldPos = this.physics.screenToWorld(x, y);
 
         if (type === 'mousedown' || type === 'touchstart') {
@@ -170,32 +151,25 @@ export class Editor {
     }
 
     onDown(pos, screenX, screenY) {
-        // If context menu is open, close it (unless we clicked inside, handled by global listener)
-        if (this.isContextMenuOpen) {
-            this.closeContextMenu();
-            return;
-        }
         if (this.isSystemMenuOpen) {
             this.closeSystemMenu();
             return;
         }
 
-        // 1. Check Gizmo Handles
-        if (this.selectedEntity) {
-            if (this.checkGizmoHit(pos)) return;
-        }
-
-        // 2. Check Holes on Selected Entity (for adding parts)
-        if (this.selectedEntity && this.selectedEntity.type === 'player_part') {
-            const holeHit = this.hitTestHoles(this.selectedEntity.object, pos);
-            if (holeHit) {
-                this.openPartContextMenu(screenX, screenY, this.selectedEntity.object, holeHit);
+        // 1. Check Action Gizmos
+        for(let g of this.activeGizmos) {
+            if (Math.hypot(g.x - pos.x, g.y - pos.y) < g.r) {
+                g.callback();
                 return;
             }
         }
 
-        // 3. Hit Test Objects
-        this.activeHandle = null;
+        // 2. Check Transform Handles
+        if (this.selectedEntity) {
+            if (this.checkGizmoHit(pos)) return;
+        }
+
+        // 3. Check Objects
         const hit = this.hitTest(pos);
 
         if (hit) {
@@ -222,25 +196,99 @@ export class Editor {
                     w: hit.object._editorData.w,
                     h: hit.object._editorData.h
                 };
+            } else if (hit.type === 'whole_robot') {
+                const bounds = Matter.Composite.bounds(hit.object.composite);
+                const center = {
+                    x: (bounds.min.x + bounds.max.x) / 2,
+                    y: (bounds.min.y + bounds.max.y) / 2
+                };
+                this.initialObjState = {
+                    center: center,
+                    angle: 0
+                };
+                this.activeHandle = 'move_robot';
             }
         } else {
-            // Clicked Empty Space
             if (this.selectedEntity) {
-                // Just deselect
                 this.selectEntity(null);
             } else {
-                // Open Global Context Menu only if nothing was selected
-                this.openGlobalContextMenu(screenX, screenY, pos);
+                this.showAddPlatformGizmo(pos);
             }
         }
     }
 
+    showAddPlatformGizmo(pos) {
+        this.activeGizmos = [];
+        this.activeGizmos.push({
+            x: pos.x,
+            y: pos.y,
+            r: 25,
+            type: 'add_plat',
+            render: (ctx, g) => {
+                ctx.fillStyle = '#27ae60';
+                ctx.beginPath();
+                ctx.arc(g.x, g.y, g.r, 0, Math.PI*2);
+                ctx.fill();
+                ctx.fillStyle = 'white';
+                ctx.font = '30px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('+', g.x, g.y);
+                ctx.font = '12px Arial';
+                ctx.fillStyle = '#333';
+                ctx.fillText('Platform', g.x, g.y + 35);
+            },
+            callback: () => {
+                this.levelManager.createPlatform({
+                    x: pos.x,
+                    y: pos.y,
+                    w: 200,
+                    h: 40,
+                    angle: 0
+                });
+                this.activeGizmos = [];
+            }
+        });
+    }
+
+    selectEntity(entity) {
+        this.selectedEntity = entity;
+        this.activeGizmos = [];
+    }
+
+    hitTest(pos) {
+        if (this.selectedEntity && this.selectedEntity.type === 'player_part') {
+            const holeHit = this.hitTestHoles(this.selectedEntity.object, pos);
+            if (holeHit) {
+                this.spawnHoleGizmos(this.selectedEntity.object, holeHit, pos);
+                return this.selectedEntity;
+            }
+        }
+
+        if (this.levelManager.player) {
+             const playerBodies = this.levelManager.player.bodies;
+            const hitPlayer = Matter.Query.point(playerBodies, pos)[0];
+            if (hitPlayer) {
+                return { type: 'player_part', object: hitPlayer };
+            }
+
+            const bounds = Matter.Composite.bounds(this.levelManager.player.composite);
+            if (Matter.Bounds.contains(bounds, pos)) {
+                return { type: 'whole_robot', object: this.levelManager.player };
+            }
+        }
+
+        const bodies = this.levelManager.platforms;
+        const hit = Matter.Query.point(bodies, pos)[0];
+        if (hit) {
+            return { type: 'platform', object: hit };
+        }
+
+        return null;
+    }
+
     hitTestHoles(body, pos) {
         const { holes } = getHolePositions(body);
-        // holes are in local unrotated space relative to body center?
-        // Wait, getHolePositions returns logic coordinates relative to center (0,0) unrotated.
-        // We need to transform world pos to local body space.
-
         const angle = body.angle;
         const dx = pos.x - body.position.x;
         const dy = pos.y - body.position.y;
@@ -250,97 +298,97 @@ export class Editor {
         const localY = dx * sin + dy * cos;
 
         for (let hole of holes) {
-            // Check distance
-            const dist = Math.hypot(localX - hole.x, localY - hole.y);
-            if (dist < 10) { // Generous hit area for hole (radius 3 drawn, but 10 touch)
-                return hole; // Return the hole local pos
+            if (Math.hypot(localX - hole.x, localY - hole.y) < 10) {
+                return hole;
             }
         }
         return null;
     }
 
-    openPartContextMenu(x, y, parentBody, holePos) {
-        this.isContextMenuOpen = true;
-        this.contextMenu.classList.remove('hidden');
-        this.contextMenu.style.left = x + 'px';
-        this.contextMenu.style.top = y + 'px';
+    spawnHoleGizmos(body, holeLoc, clickPos) {
+        this.activeGizmos = [];
+        const angle = body.angle;
+        const hx = holeLoc.x * Math.cos(angle) - holeLoc.y * Math.sin(angle);
+        const hy = holeLoc.x * Math.sin(angle) + holeLoc.y * Math.cos(angle);
+        const holeWorldX = body.position.x + hx;
+        const holeWorldY = body.position.y + hy;
 
-        this.contextMenuList.innerHTML = '';
+        this.activeGizmos.push({
+            x: holeWorldX + 30,
+            y: holeWorldY,
+            r: 15,
+            type: 'add_part',
+            render: (ctx, g) => {
+                ctx.fillStyle = '#e74c3c';
+                ctx.beginPath();
+                ctx.arc(g.x, g.y, g.r, 0, Math.PI*2);
+                ctx.fill();
+                ctx.fillStyle = 'white';
+                ctx.font = '20px Arial';
+                ctx.fillText('+', g.x, g.y);
+            },
+            callback: () => {
+                this.addPartAtHole(body, holeLoc);
+                this.activeGizmos = [];
+            }
+        });
 
-        const addPart = document.createElement('li');
-        addPart.textContent = '+ Add Part Here';
-        addPart.onclick = () => {
-            this.addPartAtHole(parentBody, holePos);
-            this.closeContextMenu();
-        };
-        this.contextMenuList.appendChild(addPart);
+        const player = this.levelManager.player;
+        const parentConstraint = player.constraints.find(c =>
+            (c.bodyB === body) && c.length === 0
+        );
 
-        const deletePart = document.createElement('li');
-        deletePart.textContent = 'Delete Parent Part';
-        deletePart.className = 'danger';
-        deletePart.onclick = () => {
-            this.deleteSelected();
-            this.closeContextMenu();
-        };
-        this.contextMenuList.appendChild(deletePart);
-    }
-
-    openGlobalContextMenu(x, y, worldPos) {
-        this.isContextMenuOpen = true;
-        this.contextMenu.classList.remove('hidden');
-        this.contextMenu.style.left = x + 'px';
-        this.contextMenu.style.top = y + 'px';
-
-        this.contextMenuList.innerHTML = '';
-
-        const addPlat = document.createElement('li');
-        addPlat.textContent = '+ Add Platform';
-        addPlat.onclick = () => {
-            this.levelManager.createPlatform({
-                x: worldPos.x,
-                y: worldPos.y,
-                w: 200,
-                h: 40,
-                angle: 0
+        if (parentConstraint) {
+             this.activeGizmos.push({
+                x: holeWorldX - 30,
+                y: holeWorldY,
+                r: 15,
+                type: 'move_joint',
+                render: (ctx, g) => {
+                    ctx.fillStyle = '#3498db';
+                    ctx.beginPath();
+                    ctx.arc(g.x, g.y, g.r, 0, Math.PI*2);
+                    ctx.fill();
+                    ctx.fillStyle = 'white';
+                    ctx.font = '12px Arial';
+                    ctx.fillText('Move', g.x, g.y);
+                },
+                callback: () => {
+                    this.moveJointToHole(parentConstraint, body, holeLoc);
+                    this.activeGizmos = [];
+                }
             });
-            this.closeContextMenu();
-        };
-        this.contextMenuList.appendChild(addPlat);
-
-        // Removed Save/Load from here as per new plan (moved to System Menu)
+        }
     }
 
-    closeContextMenu() {
-        this.isContextMenuOpen = false;
-        this.contextMenu.classList.add('hidden');
+    moveJointToHole(constraint, body, holeLoc) {
+        constraint.pointB = { x: holeLoc.x, y: holeLoc.y };
+        // pivotWorld should be calculated from A
+        let pivotWorld;
+        if (constraint.bodyA === body) pivotWorld = Matter.Constraint.pointBWorld(constraint);
+        else pivotWorld = Matter.Constraint.pointAWorld(constraint);
+
+        const angle = body.angle;
+        const hx = holeLoc.x * Math.cos(angle) - holeLoc.y * Math.sin(angle);
+        const hy = holeLoc.x * Math.sin(angle) + holeLoc.y * Math.cos(angle);
+
+        Matter.Body.setPosition(body, {
+            x: pivotWorld.x - hx,
+            y: pivotWorld.y - hy
+        });
     }
 
     addPartAtHole(parentBody, holeLoc) {
         const player = this.levelManager.player;
-        const newW = 100; // Standard strip length
+        const newW = 100;
         const newH = 20;
-
-        // Parent World Pos of the hole
         const angle = parentBody.angle;
-        // rotate holeLoc by angle
         const hx = holeLoc.x * Math.cos(angle) - holeLoc.y * Math.sin(angle);
         const hy = holeLoc.x * Math.sin(angle) + holeLoc.y * Math.cos(angle);
-
         const holeWorldX = parentBody.position.x + hx;
         const holeWorldY = parentBody.position.y + hy;
 
-        // Create New Body
-        // Align new body so one of its holes (e.g. first one) matches this hole.
-        // Let's align its center such that its "start" hole is at the pivot.
-        // New body "start" hole is at (-newW/2 + 15, 0).
-        // So center offset from pivot is (newW/2 - 15, 0).
-
         const offsetDist = (newW/2 - 15);
-        // We want new body to extend outwards? Or just default angle 0?
-        // Let's extend in same direction as parent if possible? Or perpendicular?
-        // Default to same angle as parent + 90? Or just 0.
-        // Let's do same angle as parent for extension.
-
         const newAngle = angle;
         const ox = offsetDist * Math.cos(newAngle);
         const oy = offsetDist * Math.sin(newAngle);
@@ -357,9 +405,6 @@ export class Editor {
         });
         newBody._editorData = { w: newW, h: newH };
 
-        // Rigid Pivot Constraint (length 0, high stiffness)
-        // Anchor A is holeLoc
-        // Anchor B is start hole (-newW/2 + 15, 0)
         const pivot = Matter.Constraint.create({
             bodyA: parentBody,
             bodyB: newBody,
@@ -373,23 +418,89 @@ export class Editor {
         player.bodies.push(newBody);
         player.constraints.push(pivot);
         Matter.Composite.add(player.composite, [newBody, pivot]);
-
-        // Select new part
         this.selectEntity({ type: 'player_part', object: newBody });
+    }
+
+    checkGizmoHit(pos) {
+        if (!this.selectedEntity) return false;
+
+        if (this.selectedEntity.type === 'whole_robot') {
+            const player = this.selectedEntity.object;
+            const bounds = Matter.Composite.bounds(player.composite);
+            const midX = (bounds.min.x + bounds.max.x) / 2;
+            const topY = bounds.min.y;
+
+            if (Math.hypot(midX - pos.x, (topY - 40) - pos.y) < 20) {
+                this.activeHandle = 'rotate_robot';
+                this.dragStart = pos;
+                this.initialObjState = {
+                    center: { x: midX, y: (bounds.min.y + bounds.max.y)/2 },
+                    angle: 0
+                };
+                return true;
+            }
+            return false;
+        }
+
+        const body = this.selectedEntity.object;
+        const w = body._editorData ? body._editorData.w : 20;
+        const h = body._editorData ? body._editorData.h : 20;
+        const angle = body.angle;
+
+        const tr = { x: w/2 + 20, y: -h/2 - 20 };
+        const wx = body.position.x + tr.x * Math.cos(angle) - tr.y * Math.sin(angle);
+        const wy = body.position.y + tr.x * Math.sin(angle) + tr.y * Math.cos(angle);
+
+        if (Math.hypot(wx - pos.x, wy - pos.y) < 20) {
+            this.deleteSelected();
+            return true;
+        }
+
+        const rHandleDist = w/2 + 40;
+        const rotateHandlePos = {
+            x: body.position.x + Math.cos(angle) * rHandleDist,
+            y: body.position.y + Math.sin(angle) * rHandleDist
+        };
+
+        if (Math.hypot(rotateHandlePos.x - pos.x, rotateHandlePos.y - pos.y) < 20) {
+            this.activeHandle = 'rotate';
+            this.dragStart = pos;
+            this.initialObjState = { x: body.position.x, y: body.position.y, angle: body.angle };
+            return true;
+        }
+
+        const corners = [
+            { x: -w/2, y: -h/2 },
+            { x: w/2, y: -h/2 },
+            { x: w/2, y: h/2 },
+            { x: -w/2, y: h/2 }
+        ];
+
+        for (let i = 0; i < 4; i++) {
+            const c = corners[i];
+            const cwx = body.position.x + c.x * Math.cos(angle) - c.y * Math.sin(angle);
+            const cwy = body.position.y + c.x * Math.sin(angle) + c.y * Math.cos(angle);
+
+            if (Math.hypot(cwx - pos.x, cwy - pos.y) < 15) {
+                this.activeHandle = 'resize';
+                this.resizeHandleIndex = i;
+                this.dragStart = pos;
+                return true;
+            }
+        }
+
+        return false;
     }
 
     deleteSelected() {
         if (!this.selectedEntity) return;
-
         const player = this.levelManager.player;
 
         if (this.selectedEntity.type === 'player_part') {
-             // Check minimum parts
-            if (player.bodies.length <= 1) { // Allow down to 1? Or 2? Original code said 2. Let's say 1 is fine if we want to rebuild.
+            if (player.bodies.length <= 1) {
                 alert("Cannot delete the last part!");
                 return;
             }
-
             const body = this.selectedEntity.object;
             this.removeBodyAndConstraints(body, player);
             this.selectEntity(null);
@@ -403,25 +514,19 @@ export class Editor {
     }
 
     removeBodyAndConstraints(body, player) {
-        // 1. Remove Constraints connected to this body
-        // We must loop backwards or filter
         const toRemove = [];
         for (let c of player.constraints) {
             if (c.bodyA === body || c.bodyB === body) {
                 toRemove.push(c);
             }
         }
-
         toRemove.forEach(c => {
             Matter.Composite.remove(player.composite, c);
             const idx = player.constraints.indexOf(c);
             if (idx > -1) player.constraints.splice(idx, 1);
-            // Also muscles
              const idxM = player.muscles.findIndex(m => m.constraint === c);
             if (idxM > -1) player.muscles.splice(idxM, 1);
         });
-
-        // 2. Remove Body
         Matter.Composite.remove(player.composite, body);
         const idxB = player.bodies.indexOf(body);
         if (idxB > -1) player.bodies.splice(idxB, 1);
@@ -440,7 +545,6 @@ export class Editor {
                     y: this.initialObjState.y + dy
                 });
             } else if (this.selectedEntity.type === 'player_part') {
-                 // Move entire robot structure
                  const lastX = this._lastMoveX || this.dragStart.x;
                  const lastY = this._lastMoveY || this.dragStart.y;
                  const stepDx = pos.x - lastX;
@@ -453,52 +557,115 @@ export class Editor {
                  this._lastMoveX = pos.x;
                  this._lastMoveY = pos.y;
             }
+        } else if (this.activeHandle === 'move_robot') {
+             const lastX = this._lastMoveX || this.dragStart.x;
+             const lastY = this._lastMoveY || this.dragStart.y;
+             const stepDx = pos.x - lastX;
+             const stepDy = pos.y - lastY;
+
+             const playerBodies = this.levelManager.player.bodies;
+             for (let b of playerBodies) {
+                 Matter.Body.translate(b, { x: stepDx, y: stepDy });
+             }
+             this._lastMoveX = pos.x;
+             this._lastMoveY = pos.y;
         } else if (this.activeHandle === 'rotate') {
-             const center = this.selectedEntity.object.position;
-             const startAngle = Math.atan2(this.dragStart.y - center.y, this.dragStart.x - center.x);
-             const currentAngle = Math.atan2(pos.y - center.y, pos.x - center.x);
-             const dAngle = currentAngle - startAngle;
-             Matter.Body.setAngle(this.selectedEntity.object, this.initialObjState.angle + dAngle);
+             this.handleRotation(pos);
         } else if (this.activeHandle === 'resize') {
-            const body = this.selectedEntity.object;
-            const angle = body.angle;
-            const cos = Math.cos(-angle);
-            const sin = Math.sin(-angle);
+            this.handleResize(pos);
+        } else if (this.activeHandle === 'rotate_robot') {
+            this.handleRobotRotation(pos);
+        }
+    }
 
-            const dxLocal = (pos.x - body.position.x) * cos - (pos.y - body.position.y) * sin;
-            const dyLocal = (pos.x - body.position.x) * sin + (pos.y - body.position.y) * cos;
+    handleRobotRotation(pos) {
+        const center = this.initialObjState.center;
+        const startAngle = Math.atan2(this.dragStart.y - center.y, this.dragStart.x - center.x);
+        const currentAngle = Math.atan2(pos.y - center.y, pos.x - center.x);
 
-            let newW = Math.abs(dxLocal) * 2;
-            let newH = Math.abs(dyLocal) * 2;
-            newW = Math.max(20, newW);
-            newH = Math.max(20, newH);
+        if (this._lastRotationAngle === undefined) this._lastRotationAngle = startAngle;
+        const stepAngle = currentAngle - this._lastRotationAngle;
 
-            // Snap to Hole Spacing? (20px)
-            // Optional but good for Merkur feel
-            newW = Math.round(newW / 20) * 20;
-            newH = Math.round(newH / 20) * 20;
-            // Ensure min size after snap
-            if (newW < 20) newW = 20;
-            if (newH < 20) newH = 20;
+        Matter.Composite.rotate(this.selectedEntity.object.composite, stepAngle, center);
+        this._lastRotationAngle = currentAngle;
+    }
 
-            const oldW = body._editorData.w;
-            const oldH = body._editorData.h;
-            if (newW === oldW && newH === oldH) return;
+    handleRotation(pos) {
+        const body = this.selectedEntity.object;
+        let pivot = body.position;
+        let parentConstraint = null;
 
-            const currentAngle = body.angle;
-            const chamferRadius = (this.selectedEntity.type === 'player_part') ? 5 : 0;
-            const dummy = Matter.Bodies.rectangle(0, 0, newW, newH, { chamfer: { radius: chamferRadius } });
+        if (this.selectedEntity.type === 'player_part') {
+            const player = this.levelManager.player;
+            parentConstraint = player.constraints.find(c =>
+                (c.bodyA === body || c.bodyB === body) && c.length === 0
+            );
 
-            Matter.Body.setAngle(body, 0);
-            Matter.Body.setVertices(body, dummy.vertices);
-            Matter.Body.setAngle(body, currentAngle);
-
-            body._editorData.w = newW;
-            body._editorData.h = newH;
-
-            if (this.selectedEntity.type === 'player_part') {
-                this.updateConnectedConstraints(body, oldW, oldH, newW, newH);
+            if (parentConstraint) {
+                if (parentConstraint.bodyA === body) pivot = Matter.Constraint.pointBWorld(parentConstraint);
+                else pivot = Matter.Constraint.pointAWorld(parentConstraint);
             }
+        }
+
+        const center = body.position;
+        const startAngle = Math.atan2(this.dragStart.y - center.y, this.dragStart.x - center.x);
+        const currentAngle = Math.atan2(pos.y - center.y, pos.x - center.x);
+        const dAngle = currentAngle - startAngle;
+
+        if (parentConstraint) {
+            const newAngle = this.initialObjState.angle + dAngle;
+            Matter.Body.setAngle(body, newAngle);
+
+            const anchorLocal = (parentConstraint.bodyA === body) ? parentConstraint.pointA : parentConstraint.pointB;
+            const rotatedAnchor = Matter.Vector.rotate(anchorLocal, newAngle);
+
+            let pivotWorld;
+            if (parentConstraint.bodyA === body) pivotWorld = Matter.Constraint.pointBWorld(parentConstraint);
+            else pivotWorld = Matter.Constraint.pointAWorld(parentConstraint);
+
+            Matter.Body.setPosition(body, {
+                x: pivotWorld.x - rotatedAnchor.x,
+                y: pivotWorld.y - rotatedAnchor.y
+            });
+
+        } else {
+            Matter.Body.setAngle(body, this.initialObjState.angle + dAngle);
+        }
+    }
+
+    handleResize(pos) {
+        const body = this.selectedEntity.object;
+        const angle = body.angle;
+        const cos = Math.cos(-angle);
+        const sin = Math.sin(-angle);
+
+        const dxLocal = (pos.x - body.position.x) * cos - (pos.y - body.position.y) * sin;
+        const dyLocal = (pos.x - body.position.x) * sin + (pos.y - body.position.y) * cos;
+
+        let newW = Math.abs(dxLocal) * 2;
+        let newH = Math.abs(dyLocal) * 2;
+        newW = Math.max(20, newW);
+        newH = Math.max(20, newH);
+        newW = Math.round(newW / 20) * 20;
+        newH = Math.round(newH / 20) * 20;
+
+        const oldW = body._editorData.w;
+        const oldH = body._editorData.h;
+        if (newW === oldW && newH === oldH) return;
+
+        const currentAngle = body.angle;
+        const chamferRadius = (this.selectedEntity.type === 'player_part') ? 5 : 0;
+        const dummy = Matter.Bodies.rectangle(0, 0, newW, newH, { chamfer: { radius: chamferRadius } });
+
+        Matter.Body.setAngle(body, 0);
+        Matter.Body.setVertices(body, dummy.vertices);
+        Matter.Body.setAngle(body, currentAngle);
+
+        body._editorData.w = newW;
+        body._editorData.h = newH;
+
+        if (this.selectedEntity.type === 'player_part') {
+            this.updateConnectedConstraints(body, oldW, oldH, newW, newH);
         }
     }
 
@@ -510,39 +677,9 @@ export class Editor {
 
         connected.forEach(c => {
             const point = (c.bodyA === body) ? c.pointA : c.pointB;
-            // Since we resize from center, relative positions might shift if they were on the edge.
-            // But if holes are relative to center, do they move?
-            // Holes are calculated from center. (0,0) is center.
-            // If we resize, center stays same.
-            // Points defined relative to center should stay correct spatially relative to center.
-            // BUT if the point was "on the 3rd hole", does the 3rd hole move?
-            // Yes, if we resize, the grid might shift if not careful?
-            // Logic: Hole 0 is at offset from Left.
-            // Left edge moves when Width changes.
-            // So yes, holes move relative to center!
-
-            // Old Left Edge X = -oldW/2.
-            // New Left Edge X = -newW/2.
-            // Shift = (oldW - newW) / 2.
-
-            // If point.y is small (on axis), check X.
-            // We need to shift the point to maintain its "index" from the edge?
-            // Or just snap to nearest new hole?
-
-            // Assume holes start from Top-Left or similar.
-            // Currently getHolePositions centers the group of holes.
-            // This means holes DO move relative to center if count changes or parity changes.
-
-            // Simplest fix: Re-snap to nearest valid hole on new dimensions?
-            // Or just shift by edge diff.
-
-            // For now, let's just leave it, but it might detach visually from a hole.
-            // Correct approach: Find nearest hole on new body and snap to it.
-
-            const { holes } = getHolePositions(body); // New holes
+            const { holes } = getHolePositions(body);
             let bestHole = null;
             let minD = Infinity;
-
             for(let h of holes) {
                 const d = Math.hypot(h.x - point.x, h.y - point.y);
                 if (d < minD) {
@@ -550,8 +687,7 @@ export class Editor {
                     bestHole = h;
                 }
             }
-
-            if (bestHole && minD < 25) { // If reasonably close
+            if (bestHole && minD < 25) {
                 point.x = bestHole.x;
                 point.y = bestHole.y;
             }
@@ -563,88 +699,37 @@ export class Editor {
         this.activeHandle = null;
         this._lastMoveX = null;
         this._lastMoveY = null;
-    }
-
-    selectEntity(entity) {
-        this.selectedEntity = entity;
-    }
-
-    hitTest(pos) {
-        // ... (Hit test logic similar to before but simplified or updated) ...
-        // Check Player Parts
-        if (this.levelManager.player) {
-             const playerBodies = this.levelManager.player.bodies;
-             // Check resize handles? No, handled by gizmo check.
-
-             // Check bodies
-            const hitPlayer = Matter.Query.point(playerBodies, pos)[0];
-            if (hitPlayer) {
-                return { type: 'player_part', object: hitPlayer };
-            }
-        }
-
-        // Check Platforms
-        const bodies = this.levelManager.platforms;
-        const hit = Matter.Query.point(bodies, pos)[0];
-        if (hit) {
-            return { type: 'platform', object: hit };
-        }
-
-        return null;
-    }
-
-    checkGizmoHit(pos) {
-        if (!this.selectedEntity) return false;
-        // Only platforms and player parts have gizmos
-        if (this.selectedEntity.type !== 'platform' && this.selectedEntity.type !== 'player_part') return false;
-
-        const body = this.selectedEntity.object;
-        const angle = body.angle;
-        const w = body._editorData.w;
-        const h = body._editorData.h;
-
-        // 1. Check Rotation Handle
-        const rHandleDist = w/2 + 30;
-        const rotateHandlePos = {
-            x: body.position.x + Math.cos(angle) * rHandleDist,
-            y: body.position.y + Math.sin(angle) * rHandleDist
-        };
-
-        if (Math.hypot(rotateHandlePos.x - pos.x, rotateHandlePos.y - pos.y) < 20) {
-            this.activeHandle = 'rotate';
-            this.dragStart = pos;
-            this.initialObjState = { x: body.position.x, y: body.position.y, angle: body.angle };
-            return true;
-        }
-
-        // 2. Check Resize Handles (4 corners)
-        const corners = [
-            { x: -w/2, y: -h/2 }, // TL
-            { x: w/2, y: -h/2 },  // TR
-            { x: w/2, y: h/2 },   // BR
-            { x: -w/2, y: h/2 }   // BL
-        ];
-
-        for (let i = 0; i < 4; i++) {
-            const c = corners[i];
-            const wx = body.position.x + c.x * Math.cos(angle) - c.y * Math.sin(angle);
-            const wy = body.position.y + c.x * Math.sin(angle) + c.y * Math.cos(angle);
-
-            if (Math.hypot(wx - pos.x, wy - pos.y) < 15) {
-                this.activeHandle = 'resize';
-                this.resizeHandleIndex = i;
-                this.dragStart = pos;
-                return true;
-            }
-        }
-
-        return false;
+        this._lastRotationAngle = undefined;
     }
 
     update(dt) {}
 
     draw(ctx) {
+        for(let g of this.activeGizmos) {
+            if (g.render) g.render(ctx, g);
+        }
+
         if (this.selectedEntity) {
+            if (this.selectedEntity.type === 'whole_robot') {
+                const player = this.selectedEntity.object;
+                const bounds = Matter.Composite.bounds(player.composite);
+                ctx.strokeStyle = '#9b59b6';
+                ctx.lineWidth = 3;
+                ctx.strokeRect(bounds.min.x, bounds.min.y, bounds.max.x - bounds.min.x, bounds.max.y - bounds.min.y);
+
+                const midX = (bounds.min.x + bounds.max.x) / 2;
+                const topY = bounds.min.y;
+                ctx.beginPath();
+                ctx.moveTo(midX, topY);
+                ctx.lineTo(midX, topY - 40);
+                ctx.stroke();
+                ctx.fillStyle = '#8e44ad';
+                ctx.beginPath();
+                ctx.arc(midX, topY - 40, 8, 0, Math.PI*2);
+                ctx.fill();
+                return;
+            }
+
             const obj = this.selectedEntity.object;
             ctx.save();
 
@@ -659,18 +744,28 @@ export class Editor {
 
                 ctx.strokeRect(-w/2 - 5, -h/2 - 5, w + 10, h + 10);
 
-                // Rotation Handle
                 ctx.beginPath();
                 ctx.moveTo(w/2 + 5, 0);
-                ctx.lineTo(w/2 + 30, 0);
+                ctx.lineTo(w/2 + 40, 0);
                 ctx.stroke();
 
                 ctx.fillStyle = '#e67e22';
                 ctx.beginPath();
-                ctx.arc(w/2 + 30, 0, 8, 0, Math.PI * 2);
+                ctx.arc(w/2 + 40, 0, 8, 0, Math.PI * 2);
                 ctx.fill();
 
-                // Resize Handles
+                const dx = w/2 + 20;
+                const dy = -h/2 - 20;
+                ctx.fillStyle = '#c0392b';
+                ctx.beginPath();
+                ctx.arc(dx, dy, 10, 0, Math.PI*2);
+                ctx.fill();
+                ctx.fillStyle = 'white';
+                ctx.font = 'bold 12px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('X', dx, dy);
+
                 ctx.fillStyle = (this.selectedEntity.type === 'player_part') ? '#e74c3c' : '#3498db';
                 const handles = [
                     { x: -w/2, y: -h/2 },

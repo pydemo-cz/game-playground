@@ -86,8 +86,14 @@ gameLoop();
 physics.setRenderCallback((ctx) => {
     // Apply Global Camera Transform here so ALL drawing matches the logical coordinate system
     ctx.save();
+
+    // 1. Window Fit
     ctx.translate(physics.offsetX, physics.offsetY);
     ctx.scale(physics.scaleFactor, physics.scaleFactor);
+
+    // 2. Camera Zoom/Pan
+    ctx.scale(physics.camera.zoom, physics.camera.zoom);
+    ctx.translate(physics.camera.x, physics.camera.y);
 
     drawMerkur(ctx, physics);
     levelManager.draw(ctx); // Draw Goals

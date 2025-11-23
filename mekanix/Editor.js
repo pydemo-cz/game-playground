@@ -7,7 +7,7 @@ export class Editor {
         this.physics = gameManager.physics;
         this.levelManager = gameManager.levelManager;
 
-        this.selectedEntity = null; // { type: 'platform'|'goal'|'player_part'|'whole_robot', object: Body|PlayerObject }
+        this.selectedEntity = null;
         this.dragStart = null;
         this.initialObjState = null;
         this.activeGizmos = [];
@@ -169,7 +169,7 @@ export class Editor {
             if (this.checkGizmoHit(pos)) return;
         }
 
-        // 3. Check Objects
+        // 3. Check Objects (Hit Test)
         const hit = this.hitTest(pos);
 
         if (hit) {
@@ -185,6 +185,12 @@ export class Editor {
                     angle: hit.object.angle,
                     w: hit.object._editorData.w,
                     h: hit.object._editorData.h
+                };
+                this.activeHandle = 'move';
+            } else if (hit.type === 'goal') {
+                this.initialObjState = {
+                    x: hit.object.x,
+                    y: hit.object.y
                 };
                 this.activeHandle = 'move';
             } else if (hit.type === 'player_part') {
@@ -204,9 +210,12 @@ export class Editor {
                 };
                 this.initialObjState = {
                     center: center,
-                    angle: 0
+                    angle: 0 // Start angle is 0 relative to current
                 };
                 this.activeHandle = 'move_robot';
+            } else if (hit.type === 'joint') {
+                // Joint selection (future expansion for stiffness editor)
+                this.activeHandle = 'move_joint_drag';
             }
         } else {
             if (this.selectedEntity) {
@@ -254,9 +263,21 @@ export class Editor {
     selectEntity(entity) {
         this.selectedEntity = entity;
         this.activeGizmos = [];
+
+        // Restore rotation angle tracker
+        this._lastRotationAngle = undefined;
+        this._selectionRotation = 0; // Track visual rotation for whole robot
     }
 
     hitTest(pos) {
+        // 1. Check Goal (High Priority)
+        if (this.levelManager.goal) {
+            const goal = this.levelManager.goal;
+            const d = Math.hypot(goal.x - pos.x, goal.y - pos.y);
+            if (d < goal.radius) return { type: 'goal', object: goal };
+        }
+
+        // 2. Holes on Selected (Priority)
         if (this.selectedEntity && this.selectedEntity.type === 'player_part') {
             const holeHit = this.hitTestHoles(this.selectedEntity.object, pos);
             if (holeHit) {
@@ -265,6 +286,23 @@ export class Editor {
             }
         }
 
+        // 3. Joints (Constraints)
+        if (this.levelManager.player) {
+            const playerConstraints = this.levelManager.player.constraints;
+            for (let c of playerConstraints) {
+                if (c.render && c.render.visible === false) continue;
+                const pA = Matter.Constraint.pointAWorld(c);
+                // Check if clicked near joint
+                if (Math.hypot(pA.x - pos.x, pA.y - pos.y) < 15) {
+                    // If we clicked a joint, SELECT IT.
+                    // But if we are already selecting a part, maybe clicking a joint on it means "Edit Joint"?
+                    // For now, select joint.
+                    return { type: 'joint', object: c };
+                }
+            }
+        }
+
+        // 4. Player Parts
         if (this.levelManager.player) {
              const playerBodies = this.levelManager.player.bodies;
             const hitPlayer = Matter.Query.point(playerBodies, pos)[0];
@@ -272,12 +310,14 @@ export class Editor {
                 return { type: 'player_part', object: hitPlayer };
             }
 
+            // 5. Whole Robot Bounds
             const bounds = Matter.Composite.bounds(this.levelManager.player.composite);
             if (Matter.Bounds.contains(bounds, pos)) {
                 return { type: 'whole_robot', object: this.levelManager.player };
             }
         }
 
+        // 6. Platforms
         const bodies = this.levelManager.platforms;
         const hit = Matter.Query.point(bodies, pos)[0];
         if (hit) {
@@ -363,7 +403,6 @@ export class Editor {
 
     moveJointToHole(constraint, body, holeLoc) {
         constraint.pointB = { x: holeLoc.x, y: holeLoc.y };
-        // pivotWorld should be calculated from A
         let pivotWorld;
         if (constraint.bodyA === body) pivotWorld = Matter.Constraint.pointBWorld(constraint);
         else pivotWorld = Matter.Constraint.pointAWorld(constraint);
@@ -427,20 +466,36 @@ export class Editor {
         if (this.selectedEntity.type === 'whole_robot') {
             const player = this.selectedEntity.object;
             const bounds = Matter.Composite.bounds(player.composite);
+            // We want to use the ROTATED bounds frame if we track visual rotation.
+            // But the bounds themselves are AABB.
+            // The handle is drawn relative to AABB center usually.
+            // But let's use the center we calculated.
             const midX = (bounds.min.x + bounds.max.x) / 2;
-            const topY = bounds.min.y;
+            const midY = (bounds.min.y + bounds.max.y) / 2;
+            // The handle should be above the robot (relative to rotation)
+            // Let's assume the handle is at (0, -height/2 - 40) relative to center, rotated.
+            const h = bounds.max.y - bounds.min.y;
+            const r = this._selectionRotation || 0;
 
-            if (Math.hypot(midX - pos.x, (topY - 40) - pos.y) < 20) {
+            const hLocal = { x: 0, y: -h/2 - 40 };
+            const hWorld = {
+                x: midX + hLocal.x * Math.cos(r) - hLocal.y * Math.sin(r),
+                y: midY + hLocal.x * Math.sin(r) + hLocal.y * Math.cos(r)
+            };
+
+            if (Math.hypot(hWorld.x - pos.x, hWorld.y - pos.y) < 20) {
                 this.activeHandle = 'rotate_robot';
                 this.dragStart = pos;
                 this.initialObjState = {
-                    center: { x: midX, y: (bounds.min.y + bounds.max.y)/2 },
-                    angle: 0
+                    center: { x: midX, y: midY },
+                    angle: this._selectionRotation || 0
                 };
                 return true;
             }
             return false;
         }
+
+        if (this.selectedEntity.type === 'goal' || this.selectedEntity.type === 'joint') return false; // No gizmos for goal/joint yet (only move via drag)
 
         const body = this.selectedEntity.object;
         const w = body._editorData ? body._editorData.w : 20;
@@ -544,6 +599,9 @@ export class Editor {
                     x: this.initialObjState.x + dx,
                     y: this.initialObjState.y + dy
                 });
+            } else if (this.selectedEntity.type === 'goal') {
+                this.selectedEntity.object.x = this.initialObjState.x + dx;
+                this.selectedEntity.object.y = this.initialObjState.y + dy;
             } else if (this.selectedEntity.type === 'player_part') {
                  const lastX = this._lastMoveX || this.dragStart.x;
                  const lastY = this._lastMoveY || this.dragStart.y;
@@ -582,12 +640,16 @@ export class Editor {
         const center = this.initialObjState.center;
         const startAngle = Math.atan2(this.dragStart.y - center.y, this.dragStart.x - center.x);
         const currentAngle = Math.atan2(pos.y - center.y, pos.x - center.x);
+        const dAngle = currentAngle - startAngle;
 
-        if (this._lastRotationAngle === undefined) this._lastRotationAngle = startAngle;
-        const stepAngle = currentAngle - this._lastRotationAngle;
+        if (this._lastRotationAngle === undefined) this._lastRotationAngle = 0;
+        const stepAngle = dAngle - this._lastRotationAngle; // Delta from last move
 
         Matter.Composite.rotate(this.selectedEntity.object.composite, stepAngle, center);
-        this._lastRotationAngle = currentAngle;
+        this._lastRotationAngle = dAngle;
+
+        // Update visual rotation for frame
+        this._selectionRotation = this.initialObjState.angle + dAngle;
     }
 
     handleRotation(pos) {
@@ -713,27 +775,52 @@ export class Editor {
             if (this.selectedEntity.type === 'whole_robot') {
                 const player = this.selectedEntity.object;
                 const bounds = Matter.Composite.bounds(player.composite);
+                const midX = (bounds.min.x + bounds.max.x) / 2;
+                const midY = (bounds.min.y + bounds.max.y) / 2;
+                const w = bounds.max.x - bounds.min.x;
+                const h = bounds.max.y - bounds.min.y;
+                const r = this._selectionRotation || 0;
+
+                ctx.save();
+                ctx.translate(midX, midY);
+                ctx.rotate(r);
+
                 ctx.strokeStyle = '#9b59b6';
                 ctx.lineWidth = 3;
-                ctx.strokeRect(bounds.min.x, bounds.min.y, bounds.max.x - bounds.min.x, bounds.max.y - bounds.min.y);
+                ctx.strokeRect(-w/2, -h/2, w, h);
 
-                const midX = (bounds.min.x + bounds.max.x) / 2;
-                const topY = bounds.min.y;
+                // Rotation Handle
                 ctx.beginPath();
-                ctx.moveTo(midX, topY);
-                ctx.lineTo(midX, topY - 40);
+                ctx.moveTo(0, -h/2);
+                ctx.lineTo(0, -h/2 - 40);
                 ctx.stroke();
                 ctx.fillStyle = '#8e44ad';
                 ctx.beginPath();
-                ctx.arc(midX, topY - 40, 8, 0, Math.PI*2);
+                ctx.arc(0, -h/2 - 40, 8, 0, Math.PI*2);
                 ctx.fill();
+
+                ctx.restore();
                 return;
             }
 
             const obj = this.selectedEntity.object;
             ctx.save();
 
-            if (this.selectedEntity.type === 'platform' || this.selectedEntity.type === 'player_part') {
+            if (this.selectedEntity.type === 'goal') {
+                ctx.strokeStyle = '#3498db';
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.arc(obj.x, obj.y, obj.radius + 5, 0, Math.PI*2);
+                ctx.stroke();
+            } else if (this.selectedEntity.type === 'joint') {
+                const c = this.selectedEntity.object;
+                const pA = Matter.Constraint.pointAWorld(c);
+                ctx.strokeStyle = '#f1c40f';
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.arc(pA.x, pA.y, 12, 0, Math.PI * 2);
+                ctx.stroke();
+            } else if (this.selectedEntity.type === 'platform' || this.selectedEntity.type === 'player_part') {
                 ctx.translate(obj.position.x, obj.position.y);
                 ctx.rotate(obj.angle);
 
@@ -744,6 +831,7 @@ export class Editor {
 
                 ctx.strokeRect(-w/2 - 5, -h/2 - 5, w + 10, h + 10);
 
+                // Rotation Handle
                 ctx.beginPath();
                 ctx.moveTo(w/2 + 5, 0);
                 ctx.lineTo(w/2 + 40, 0);
@@ -754,6 +842,7 @@ export class Editor {
                 ctx.arc(w/2 + 40, 0, 8, 0, Math.PI * 2);
                 ctx.fill();
 
+                // Delete Handle (Local Draw)
                 const dx = w/2 + 20;
                 const dy = -h/2 - 20;
                 ctx.fillStyle = '#c0392b';
@@ -766,6 +855,7 @@ export class Editor {
                 ctx.textBaseline = 'middle';
                 ctx.fillText('X', dx, dy);
 
+                // Resize Handles
                 ctx.fillStyle = (this.selectedEntity.type === 'player_part') ? '#e74c3c' : '#3498db';
                 const handles = [
                     { x: -w/2, y: -h/2 },

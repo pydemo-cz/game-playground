@@ -19,6 +19,11 @@
             "title": "Mekanix",
             "description": "A physics-based puzzle game. Control mechanical structures to reach the goal.",
             "url": "mekanix/index.html"
+        },
+        {
+            "title": "Jumpik",
+            "description": "A hand-drawn platformer adventure.",
+            "url": "jumpik/index.html"
         }
     ]
 }

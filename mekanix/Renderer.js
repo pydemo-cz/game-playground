@@ -64,6 +64,23 @@ export function getHolePositions(body) {
     return { holes, w, h }; // Return w, h too to avoid re-calc
 }
 
+// Helper: Calculate world position of a constraint anchor manually to avoid caching issues
+function getConstraintPointWorld(body, pointLocal) {
+    if (!body) return pointLocal; // Static world point
+    const angle = body.angle;
+    const cos = Math.cos(angle);
+    const sin = Math.sin(angle);
+
+    // Rotate local point
+    const rx = pointLocal.x * cos - pointLocal.y * sin;
+    const ry = pointLocal.x * sin + pointLocal.y * cos;
+
+    return {
+        x: body.position.x + rx,
+        y: body.position.y + ry
+    };
+}
+
 // Custom renderer logic for "Merkur" style
 export function drawMerkur(ctx, physics) {
     // Draw World Border (Background for logical area)
@@ -131,8 +148,11 @@ export function drawMerkur(ctx, physics) {
 
     for (let c of constraints) {
         if (c.render && c.render.visible === false) continue;
-        const pA = Matter.Constraint.pointAWorld(c);
-        const pB = Matter.Constraint.pointBWorld(c);
+
+        // Use manual calculation instead of Matter.Constraint.pointAWorld(c)
+        // to ensure visual sync with rapid rotation updates.
+        const pA = getConstraintPointWorld(c.bodyA, c.pointA);
+        const pB = getConstraintPointWorld(c.bodyB, c.pointB);
 
         if (c.label === 'muscle') {
             // Draw Muscle (Spring/Line)
@@ -150,7 +170,7 @@ export function drawMerkur(ctx, physics) {
             ctx.strokeStyle = '#d35400';
             ctx.lineWidth = 1;
 
-            // Draw a bolt head at the joint location
+            // Draw a bolt head at the joint location (Use pA as primary anchor visual)
             ctx.beginPath();
             ctx.arc(pA.x, pA.y, 5, 0, Math.PI * 2);
             ctx.fill();

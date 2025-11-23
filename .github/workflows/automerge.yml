@@ -1,8 +1,8 @@
-name: Enable PR automerge
+name: Auto-ready + auto-merge for every PR
 
 on:
   pull_request:
-    types: [opened, reopened, synchronize]
+    types: [opened, reopened, synchronize, ready_for_review]
 
 permissions:
   pull-requests: write
@@ -16,7 +16,15 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Enable Pull Request Automerge
+      # 1) Když je PR draft, přepni ho na "ready for review"
+      - name: Convert draft PR to ready
+        if: ${{ github.event.pull_request.draft == true }}
+        env:
+          GH_TOKEN: ${{ github.token }}   # nebo secrets.PAT
+        run: gh pr ready "${{ github.event.pull_request.number }}"
+
+      # 2) Zapni auto-merge (nebo hned merge, pokud nejsou žádné required checks)
+      - name: Enable PR auto-merge
         env:
           GH_TOKEN: ${{ github.token }}   # nebo secrets.PAT
         run: gh pr merge --merge --auto "${{ github.event.pull_request.number }}"

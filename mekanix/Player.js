@@ -41,12 +41,20 @@ export class Player {
             // Verify indices exist
             if (c.bodyA >= bodyMap.length || c.bodyB >= bodyMap.length) return;
 
+            const type = c.type || 'pivot';
+            let length = c.length;
+
+            // Force length 0 for pivots to ensure pin-joint behavior
+            if (type === 'pivot' || type === 'joint') {
+                length = 0;
+            }
+
             const opts = {
                 bodyA: bodyMap[c.bodyA],
                 bodyB: bodyMap[c.bodyB],
                 pointA: c.pointA,
                 pointB: c.pointB,
-                length: c.length, // If muscle
+                length: length,
                 stiffness: c.stiffness || 1,
                 damping: c.damping || 0
             };
@@ -54,7 +62,7 @@ export class Player {
             const constraint = Matter.Constraint.create(opts);
 
             // Tag the constraint for the Renderer
-            constraint.label = c.type || 'pivot';
+            constraint.label = type;
 
             if (c.angleLimits) {
                 constraint.angleLimits = { ...c.angleLimits };

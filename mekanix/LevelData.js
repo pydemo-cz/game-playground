@@ -16,8 +16,8 @@ export const DEFAULT_LEVEL = {
         ],
         constraints: [
              // Pivot at the top hole (y=-30 relative to center, matches Renderer grid)
-             // Both parts are at (0,0) relative to startPos, so their local anchors are the same
-             { type: "pivot", bodyA: 0, bodyB: 1, pointA: {x: 0, y: -30}, pointB: {x: 0, y: -30} },
+             // Explicitly set length 0 for clarity (though Player.js now enforces it)
+             { type: "pivot", bodyA: 0, bodyB: 1, pointA: {x: 0, y: -30}, pointB: {x: 0, y: -30}, length: 0 },
              { type: "muscle", bodyA: 0, bodyB: 1, pointA: {x: 0, y: 0}, pointB: {x: 0, y: 0}, length: 100, stiffness: 0.1 }
         ]
     }

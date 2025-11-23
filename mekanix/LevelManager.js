@@ -67,6 +67,8 @@ export class LevelManager {
     update(dt) {
         if (!this.isActive || !this.goal || !this.player) return;
 
+        this.player.update(dt);
+
         if (this.goal.update(dt, this.player.bodies)) {
             this.isActive = false;
             this.onLevelComplete();

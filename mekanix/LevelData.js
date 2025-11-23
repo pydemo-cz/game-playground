@@ -8,13 +8,16 @@ export const DEFAULT_LEVEL = {
     player: {
         startPos: { x: 360, y: 1100 },
         parts: [
-            { x: -10, y: 0, w: 20, h: 100, angle: -0.5 },
-            { x: 10, y: 0, w: 20, h: 100, angle: 0.5 }
+            // Overlapping parts
+            // Part 0 centered at x=0
+            { x: 0, y: 0, w: 20, h: 100, angle: -0.5 },
+            // Part 1 centered at x=0 (They fully overlap if angle is 0)
+            { x: 0, y: 0, w: 20, h: 100, angle: 0.5 }
         ],
         constraints: [
-             // Defined relatively or by index?
-             // By index is easier for serialization.
-             { type: "pivot", bodyA: 0, bodyB: 1, pointA: {x: 10, y: -50}, pointB: {x: -10, y: -50} },
+             // Pivot at the top hole (y=-30 relative to center, matches Renderer grid)
+             // Both parts are at (0,0) relative to startPos, so their local anchors are the same
+             { type: "pivot", bodyA: 0, bodyB: 1, pointA: {x: 0, y: -30}, pointB: {x: 0, y: -30} },
              { type: "muscle", bodyA: 0, bodyB: 1, pointA: {x: 0, y: 0}, pointB: {x: 0, y: 0}, length: 100, stiffness: 0.1 }
         ]
     }

@@ -284,6 +284,48 @@ export class Editor {
         this._lastRotationAngle = undefined;
         this._selectionRotation = 0; // Track visual rotation for whole robot
 
+        // Camera Focus Logic
+        if (entity) {
+             let bounds = null;
+             if (entity.type === 'whole_robot') {
+                 bounds = Matter.Composite.bounds(entity.object.composite);
+             } else if (entity.type === 'player_part') {
+                 // If a part is selected, maybe we want to focus on the whole robot still?
+                 // Or just the part?
+                 // User said: "zoom in such that it is bigger BUT the whole robot is ALWAYS on screen"
+                 // This implies we should always use the ROBOT bounds, maybe slightly adjusted?
+                 // But simply calling focusOn(robotBounds) will just fit the robot.
+                 // If the robot is small, it zooms in. If big, it zooms out.
+                 // This satisfies "zoom in such that it is bigger" (if it was small) and "whole robot on screen".
+                 if (this.levelManager.player) {
+                     bounds = Matter.Composite.bounds(this.levelManager.player.composite);
+                 } else {
+                     bounds = entity.object.bounds;
+                 }
+             } else if (entity.type === 'joint' || entity.type === 'hole') {
+                 // Focus on the joint but keep robot in view
+                  if (this.levelManager.player) {
+                     bounds = Matter.Composite.bounds(this.levelManager.player.composite);
+                 }
+             } else if (entity.type === 'platform' || entity.type === 'goal') {
+                 if (entity.object.bounds) bounds = entity.object.bounds;
+                 else if (entity.object.radius) {
+                     // Goal
+                     bounds = {
+                         min: { x: entity.object.x - entity.object.radius, y: entity.object.y - entity.object.radius },
+                         max: { x: entity.object.x + entity.object.radius, y: entity.object.y + entity.object.radius }
+                     };
+                 }
+             }
+
+             if (bounds) {
+                 this.physics.focusOn(bounds, 150); // 150px padding
+             }
+        } else {
+            // Deselected
+            this.physics.resetCamera();
+        }
+
         if (entity && entity.type === 'hole') {
              this.spawnEmptyHoleGizmos(entity.object.body, entity.object.hole);
         } else if (entity && entity.type === 'joint') {
@@ -577,37 +619,63 @@ export class Editor {
     }
 
     addPartAtHole(parentBody, holeLoc) {
+        // NOTE: This method is now required and implemented correctly.
         const player = this.levelManager.player;
         const newW = 100;
         const newH = 20;
         const angle = parentBody.angle;
+
+        // Hole World Position
         const hx = holeLoc.x * Math.cos(angle) - holeLoc.y * Math.sin(angle);
         const hy = holeLoc.x * Math.sin(angle) + holeLoc.y * Math.cos(angle);
         const holeWorldX = parentBody.position.x + hx;
         const holeWorldY = parentBody.position.y + hy;
 
-        const offsetDist = (newW/2 - 15);
+        // Position new part so its hole (e.g., at top) aligns with parent's hole.
+        // Let's assume new part has hole at (0, -40) relative to center (like DEFAULT_LEVEL)
+        // newH = 20, center is (0,0). Top edge at y=-10?
+        // Wait, w=100, h=20. It's a long bar horizontally?
+        // Or vertically? w=20, h=100.
+        // Let's create a standard vertical part: w=20, h=100.
+        // Hole at (0, -30) (relative to center)
+        const newPartW = 20;
+        const newPartH = 100;
+        const newAnchorY = -30; // 20px from top
+
+        // We want: NewBodyPos + rotate(newAnchor) = HoleWorldPos
+        // NewBodyPos = HoleWorldPos - rotate(newAnchor)
+
+        // Let's keep angle same as parent for now (extended straight)
+        // Or +90 degrees? Let's do same angle.
         const newAngle = angle;
-        const ox = offsetDist * Math.cos(newAngle);
-        const oy = offsetDist * Math.sin(newAngle);
+        const cos = Math.cos(newAngle);
+        const sin = Math.sin(newAngle);
+
+        const anchorX = 0;
+        const anchorY = newAnchorY;
+
+        const rotAnchorX = anchorX * cos - anchorY * sin;
+        const rotAnchorY = anchorX * sin + anchorY * cos;
+
+        const newBodyX = holeWorldX - rotAnchorX;
+        const newBodyY = holeWorldY - rotAnchorY;
 
         const newBody = Matter.Bodies.rectangle(
-            holeWorldX + ox,
-            holeWorldY + oy,
-            newW, newH, {
-            collisionFilter: parentBody.collisionFilter,
+            newBodyX, newBodyY,
+            newPartW, newPartH, {
+            collisionFilter: parentBody.collisionFilter, // Should share group to allow overlap
             chamfer: { radius: 5 },
             density: 0.01,
             friction: 1.0,
             angle: newAngle
         });
-        newBody._editorData = { w: newW, h: newH };
+        newBody._editorData = { w: newPartW, h: newPartH };
 
         const pivot = Matter.Constraint.create({
             bodyA: parentBody,
             bodyB: newBody,
             pointA: { x: holeLoc.x, y: holeLoc.y },
-            pointB: { x: -newW/2 + 15, y: 0 },
+            pointB: { x: anchorX, y: anchorY },
             stiffness: 1,
             length: 0,
             render: { visible: true }

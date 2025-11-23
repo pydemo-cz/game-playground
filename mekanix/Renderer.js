@@ -128,24 +128,39 @@ export function drawMerkur(ctx, physics) {
 
     // Draw Joints (Bolts)
     const constraints = Matter.Composite.allConstraints(physics.world);
-    ctx.fillStyle = '#f1c40f';
-    ctx.strokeStyle = '#d35400';
-    ctx.lineWidth = 1;
 
     for (let c of constraints) {
         if (c.render && c.render.visible === false) continue;
-
         const pA = Matter.Constraint.pointAWorld(c);
-        // Draw a bolt head at the joint location
-        ctx.beginPath();
-        ctx.arc(pA.x, pA.y, 5, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
+        const pB = Matter.Constraint.pointBWorld(c);
 
-        // Little screw slot
-        ctx.beginPath();
-        ctx.moveTo(pA.x - 3, pA.y);
-        ctx.lineTo(pA.x + 3, pA.y);
-        ctx.stroke();
+        if (c.label === 'muscle') {
+            // Draw Muscle (Spring/Line)
+            ctx.beginPath();
+            ctx.moveTo(pA.x, pA.y);
+            ctx.lineTo(pB.x, pB.y);
+            ctx.strokeStyle = 'rgba(230, 126, 34, 0.6)'; // Semi-transparent orange
+            ctx.lineWidth = 4;
+            ctx.setLineDash([5, 5]); // Dashed line for muscle
+            ctx.stroke();
+            ctx.setLineDash([]);
+        } else {
+            // Default to Pivot (Bolt)
+            ctx.fillStyle = '#f1c40f';
+            ctx.strokeStyle = '#d35400';
+            ctx.lineWidth = 1;
+
+            // Draw a bolt head at the joint location
+            ctx.beginPath();
+            ctx.arc(pA.x, pA.y, 5, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+
+            // Little screw slot
+            ctx.beginPath();
+            ctx.moveTo(pA.x - 3, pA.y);
+            ctx.lineTo(pA.x + 3, pA.y);
+            ctx.stroke();
+        }
     }
 }

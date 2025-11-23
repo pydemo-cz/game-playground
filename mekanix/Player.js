@@ -52,6 +52,11 @@ export class Player {
             };
 
             const constraint = Matter.Constraint.create(opts);
+
+            if (c.angleLimits) {
+                constraint.angleLimits = { ...c.angleLimits };
+            }
+
             this.constraints.push(constraint);
 
             if (c.type === 'muscle') {
@@ -118,6 +123,57 @@ export class Player {
     }
 
     createLWalker(x, y) { this.createVWalker(x,y); }
+
+    update(dt) {
+        // Enforce Angle Limits
+        for (let c of this.constraints) {
+            if (c.angleLimits) {
+                this.enforceAngleLimit(c);
+            }
+        }
+    }
+
+    enforceAngleLimit(c) {
+        // Calculate current relative angle between bodies
+        const angleA = c.bodyA.angle;
+        const angleB = c.bodyB.angle;
+        let diff = angleB - angleA;
+
+        // Normalize diff to -PI, PI
+        while (diff < -Math.PI) diff += 2*Math.PI;
+        while (diff > Math.PI) diff -= 2*Math.PI;
+
+        const min = c.angleLimits.min;
+        const max = c.angleLimits.max;
+
+        // We assume min and max are relative to bodyA's frame, e.g., [-0.5, 0.5]
+
+        let targetAngle = null;
+        if (diff < min) targetAngle = min;
+        else if (diff > max) targetAngle = max;
+
+        if (targetAngle !== null) {
+            // Correct the angle
+            // This is a "hard" correction. For physics stability, applying torque is better,
+            // but for "rigid" limits, setting angular velocity or position is often used.
+            // Let's try fixing the position (Verlet integration style) or just stopping rotation.
+
+            // Simple approach: Set BodyB angle to limit
+            // Matter.Body.setAngle(c.bodyB, angleA + targetAngle);
+
+            // Better: Apply corrective torque/velocity to bring it back
+            // Or just clamp the angle directly if we want rigid stops.
+            // "Zip Zap" feels rigid.
+
+            // Let's clamp directly for now.
+             Matter.Body.setAngle(c.bodyB, angleA + targetAngle);
+             Matter.Body.setAngularVelocity(c.bodyB, c.bodyA.angularVelocity); // Match velocity to stop drift
+
+             // We also need to re-sync the position because rotating around center moves the anchor
+             // The constraint solver should handle position, but manual rotation might break it.
+             // We can rely on the constraint solver to fix position in next step.
+        }
+    }
 
     contract() {
         for (let m of this.muscles) {
@@ -191,7 +247,8 @@ export class Player {
                  pointB: c.pointB,
                  length: c.length,
                  stiffness: c.stiffness,
-                 damping: c.damping
+                 damping: c.damping,
+                 angleLimits: c.angleLimits ? { ...c.angleLimits } : undefined
                  // Add contractedLength for muscles?
              };
         }).filter(c => c !== null);

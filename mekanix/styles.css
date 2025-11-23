@@ -63,6 +63,12 @@ canvas {
     left: 100px;
 }
 
+#restart-btn {
+    position: absolute;
+    top: 90px;
+    right: 30px;
+}
+
 .floating-btn {
     position: absolute;
     top: 20px;

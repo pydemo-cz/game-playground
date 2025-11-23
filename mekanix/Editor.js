@@ -17,11 +17,16 @@ export class Editor {
 
         this.systemMenu = document.getElementById('system-menu');
         this.menuBtn = document.getElementById('menu-btn');
+        this.restartBtn = document.getElementById('restart-btn');
         this.isSystemMenuOpen = false;
 
         this.menuBtn.addEventListener('click', (e) => {
             e.stopPropagation();
             this.toggleSystemMenu();
+        });
+
+        this.restartBtn.addEventListener('click', () => {
+            this.levelManager.resetLevel();
         });
 
         document.getElementById('menu-reset').addEventListener('click', () => {
@@ -59,6 +64,9 @@ export class Editor {
                 this.closeSystemMenu();
             }
         });
+
+        // Ensure correct initial state
+        this.updateModeBtn();
     }
 
     toggleSystemMenu() {
@@ -79,9 +87,13 @@ export class Editor {
         if (this.gm.state === 'EDIT') {
             this.modeBtn.textContent = '▶ Play';
             this.modeBtn.style.background = '#2ecc71';
+            this.menuBtn.classList.remove('hidden');
+            this.restartBtn.classList.add('hidden');
         } else {
             this.modeBtn.textContent = '✎ Edit';
             this.modeBtn.style.background = '#e74c3c';
+            this.menuBtn.classList.add('hidden');
+            this.restartBtn.classList.remove('hidden');
         }
     }
 
@@ -167,6 +179,10 @@ export class Editor {
         // 2. Check Transform Handles
         if (this.selectedEntity) {
             if (this.checkGizmoHit(pos)) return;
+            // Check Joint Limit Handles
+            if (this.selectedEntity.type === 'joint' && this.selectedEntity.object.angleLimits) {
+                if (this.checkJointLimitHit(pos)) return;
+            }
         }
 
         // 3. Check Objects (Hit Test)
@@ -267,6 +283,139 @@ export class Editor {
         // Restore rotation angle tracker
         this._lastRotationAngle = undefined;
         this._selectionRotation = 0; // Track visual rotation for whole robot
+
+        if (entity && entity.type === 'hole') {
+             this.spawnEmptyHoleGizmos(entity.object.body, entity.object.hole);
+        } else if (entity && entity.type === 'joint') {
+             this.spawnJointGizmos(entity.object);
+        }
+    }
+
+    getHoleWorldPos(body, holeLoc) {
+        const angle = body.angle;
+        const hx = holeLoc.x * Math.cos(angle) - holeLoc.y * Math.sin(angle);
+        const hy = holeLoc.x * Math.sin(angle) + holeLoc.y * Math.cos(angle);
+        return {
+            x: body.position.x + hx,
+            y: body.position.y + hy
+        };
+    }
+
+    spawnEmptyHoleGizmos(body, holeLoc) {
+        const pos = this.getHoleWorldPos(body, holeLoc);
+
+        this.activeGizmos.push({
+            x: pos.x,
+            y: pos.y - 40,
+            r: 20,
+            label: '+',
+            type: 'add_part',
+            render: (ctx, g) => {
+                // Line connecting to hole
+                ctx.beginPath();
+                ctx.moveTo(pos.x, pos.y);
+                ctx.lineTo(g.x, g.y);
+                ctx.strokeStyle = '#2ecc71';
+                ctx.stroke();
+
+                ctx.fillStyle = '#2ecc71';
+                ctx.beginPath();
+                ctx.arc(g.x, g.y, g.r, 0, Math.PI*2);
+                ctx.fill();
+                ctx.fillStyle = 'white';
+                ctx.font = '24px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('+', g.x, g.y);
+            },
+            callback: () => {
+                this.addPartAtHole(body, holeLoc);
+                this.selectEntity(null); // Deselect after adding
+            }
+        });
+    }
+
+    spawnJointGizmos(constraint) {
+        const pos = Matter.Constraint.pointAWorld(constraint);
+
+        // Gizmo to define Limits
+        // Logic: Click to toggle/edit limit? Or dragging handles?
+        // Let's add a "Limit" toggle button/icon first?
+        // Or better, just draw the arc and let them drag limits if they exist.
+        // For now, let's just show a "Move" gizmo.
+
+        // Move Gizmo
+        this.activeGizmos.push({
+            x: pos.x,
+            y: pos.y - 50,
+            r: 15,
+            type: 'move_joint_btn',
+            render: (ctx, g) => {
+                ctx.beginPath();
+                ctx.moveTo(pos.x, pos.y);
+                ctx.lineTo(g.x, g.y);
+                ctx.strokeStyle = '#3498db';
+                ctx.stroke();
+
+                ctx.fillStyle = '#3498db';
+                ctx.beginPath();
+                ctx.arc(g.x, g.y, g.r, 0, Math.PI*2);
+                ctx.fill();
+                ctx.fillStyle = 'white';
+                ctx.font = '12px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('Move', g.x, g.y);
+            },
+            callback: () => {
+                this.activeHandle = 'drag_joint';
+                this.dragStart = pos;
+                // We are now dragging the joint. Visual feedback will happen in draw/onMove.
+            }
+        });
+
+        // Limit Gizmo (Toggle)
+        if (!constraint.angleLimits) {
+            this.activeGizmos.push({
+                x: pos.x + 40,
+                y: pos.y,
+                r: 15,
+                type: 'add_limit',
+                render: (ctx, g) => {
+                    ctx.fillStyle = '#e67e22';
+                    ctx.beginPath();
+                    ctx.arc(g.x, g.y, g.r, 0, Math.PI*2);
+                    ctx.fill();
+                    ctx.fillStyle = 'white';
+                    ctx.font = '10px Arial';
+                    ctx.fillText('Limit', g.x, g.y);
+                },
+                callback: () => {
+                    constraint.angleLimits = { min: -0.5, max: 0.5 };
+                    this.selectEntity(this.selectedEntity); // Refresh gizmos
+                }
+            });
+        } else {
+             this.activeGizmos.push({
+                x: pos.x + 40,
+                y: pos.y,
+                r: 15,
+                type: 'remove_limit',
+                render: (ctx, g) => {
+                    ctx.fillStyle = '#c0392b';
+                    ctx.beginPath();
+                    ctx.arc(g.x, g.y, g.r, 0, Math.PI*2);
+                    ctx.fill();
+                    ctx.fillStyle = 'white';
+                    ctx.font = '10px Arial';
+                    ctx.fillText('NoLim', g.x, g.y);
+                },
+                callback: () => {
+                    delete constraint.angleLimits;
+                    this.selectEntity(this.selectedEntity); // Refresh gizmos
+                }
+            });
+        }
     }
 
     hitTest(pos) {
@@ -277,34 +426,44 @@ export class Editor {
             if (d < goal.radius) return { type: 'goal', object: goal };
         }
 
-        // 2. Holes on Selected (Priority)
-        if (this.selectedEntity && this.selectedEntity.type === 'player_part') {
-            const holeHit = this.hitTestHoles(this.selectedEntity.object, pos);
-            if (holeHit) {
-                this.spawnHoleGizmos(this.selectedEntity.object, holeHit, pos);
-                return this.selectedEntity;
-            }
-        }
-
-        // 3. Joints (Constraints)
         if (this.levelManager.player) {
+            // 2. Joints (Constraints) - Higher priority than parts
             const playerConstraints = this.levelManager.player.constraints;
             for (let c of playerConstraints) {
                 if (c.render && c.render.visible === false) continue;
                 const pA = Matter.Constraint.pointAWorld(c);
-                // Check if clicked near joint
-                if (Math.hypot(pA.x - pos.x, pA.y - pos.y) < 15) {
-                    // If we clicked a joint, SELECT IT.
-                    // But if we are already selecting a part, maybe clicking a joint on it means "Edit Joint"?
-                    // For now, select joint.
+                // Increased hit radius for better mobile selection
+                if (Math.hypot(pA.x - pos.x, pA.y - pos.y) < 20) {
                     return { type: 'joint', object: c };
                 }
             }
-        }
 
-        // 4. Player Parts
-        if (this.levelManager.player) {
-             const playerBodies = this.levelManager.player.bodies;
+            // 3. Holes on ANY Player Part
+            // We want to be able to select empty holes on any part to add stuff
+            const playerBodies = this.levelManager.player.bodies;
+            // Check top-most body first? (Reverse order usually)
+            for (let i = playerBodies.length - 1; i >= 0; i--) {
+                const body = playerBodies[i];
+                // Optimization: only check bodies near the click
+                if (!Matter.Bounds.contains(body.bounds, pos)) continue;
+
+                const holeHit = this.hitTestHoles(body, pos);
+                if (holeHit) {
+                    // Check if this hole is already occupied by a joint
+                    const isOccupied = playerConstraints.some(c => {
+                        // Check distance to constraint anchor
+                        const pA = Matter.Constraint.pointAWorld(c);
+                        const holeWorld = this.getHoleWorldPos(body, holeHit);
+                        return Math.hypot(pA.x - holeWorld.x, pA.y - holeWorld.y) < 5;
+                    });
+
+                    if (!isOccupied) {
+                        return { type: 'hole', object: { body: body, hole: holeHit } };
+                    }
+                }
+            }
+
+            // 4. Player Parts
             const hitPlayer = Matter.Query.point(playerBodies, pos)[0];
             if (hitPlayer) {
                 return { type: 'player_part', object: hitPlayer };
@@ -458,6 +617,38 @@ export class Editor {
         player.constraints.push(pivot);
         Matter.Composite.add(player.composite, [newBody, pivot]);
         this.selectEntity({ type: 'player_part', object: newBody });
+    }
+
+    checkJointLimitHit(pos) {
+        const c = this.selectedEntity.object;
+        const limits = c.angleLimits;
+        const pA = Matter.Constraint.pointAWorld(c);
+        const r = 30; // Radius of arc
+        const angleA = c.bodyA.angle;
+
+        const minAngle = angleA + limits.min;
+        const maxAngle = angleA + limits.max;
+
+        const minPos = {
+            x: pA.x + r * Math.cos(minAngle),
+            y: pA.y + r * Math.sin(minAngle)
+        };
+        const maxPos = {
+            x: pA.x + r * Math.cos(maxAngle),
+            y: pA.y + r * Math.sin(maxAngle)
+        };
+
+        if (Math.hypot(pos.x - minPos.x, pos.y - minPos.y) < 15) {
+            this.activeHandle = 'limit_min';
+            this.dragStart = pos;
+            return true;
+        }
+        if (Math.hypot(pos.x - maxPos.x, pos.y - maxPos.y) < 15) {
+            this.activeHandle = 'limit_max';
+            this.dragStart = pos;
+            return true;
+        }
+        return false;
     }
 
     checkGizmoHit(pos) {
@@ -633,7 +824,92 @@ export class Editor {
             this.handleResize(pos);
         } else if (this.activeHandle === 'rotate_robot') {
             this.handleRobotRotation(pos);
+        } else if (this.activeHandle === 'drag_joint') {
+            this.handleJointDrag(pos);
+        } else if (this.activeHandle === 'limit_min' || this.activeHandle === 'limit_max') {
+            this.handleLimitDrag(pos);
         }
+    }
+
+    handleLimitDrag(pos) {
+        const c = this.selectedEntity.object;
+        const pA = Matter.Constraint.pointAWorld(c);
+        const angleA = c.bodyA.angle;
+
+        // Angle from center to mouse
+        let mouseAngle = Math.atan2(pos.y - pA.y, pos.x - pA.x);
+        // Relative to bodyA
+        let relAngle = mouseAngle - angleA;
+
+        // Normalize
+        while (relAngle < -Math.PI) relAngle += 2*Math.PI;
+        while (relAngle > Math.PI) relAngle -= 2*Math.PI;
+
+        if (this.activeHandle === 'limit_min') {
+            c.angleLimits.min = relAngle;
+            // Ensure min < max?
+        } else {
+            c.angleLimits.max = relAngle;
+        }
+    }
+
+    handleJointDrag(pos) {
+        const c = this.selectedEntity.object;
+
+        // Find nearest hole on BodyA
+        const bestHoleA = this.findNearestHole(c.bodyA, pos);
+        if (bestHoleA) {
+            c.pointA = bestHoleA;
+        }
+
+        // Find nearest hole on BodyB
+        const bestHoleB = this.findNearestHole(c.bodyB, pos);
+        if (bestHoleB) {
+            c.pointB = bestHoleB;
+        }
+
+        // Snap bodies together to avoid explosion?
+        // Let physics handle it? Or teleport BodyB?
+        // Teleporting B to match A's anchor is safer.
+        if (bestHoleA && bestHoleB) {
+             const anchorAWorld = this.getHoleWorldPos(c.bodyA, bestHoleA);
+             const anchorBWorld = this.getHoleWorldPos(c.bodyB, bestHoleB); // Where B's hole IS currently
+
+             // We want B's hole to BE at anchorAWorld.
+             // Delta:
+             const dx = anchorAWorld.x - anchorBWorld.x;
+             const dy = anchorAWorld.y - anchorBWorld.y;
+
+             Matter.Body.translate(c.bodyB, { x: dx, y: dy });
+        }
+    }
+
+    findNearestHole(body, pos) {
+        const { holes } = getHolePositions(body);
+        const angle = body.angle;
+
+        // Transform world pos to local (relative to body center) unrotated
+        // But getHolePositions returns local coordinates relative to center (unrotated).
+        // So we need to transform pos (world) to local.
+
+        const dx = pos.x - body.position.x;
+        const dy = pos.y - body.position.y;
+        const cos = Math.cos(-angle);
+        const sin = Math.sin(-angle);
+        const localX = dx * cos - dy * sin;
+        const localY = dx * sin + dy * cos;
+
+        let bestHole = null;
+        let minDist = 30; // Snap radius
+
+        for (let h of holes) {
+            const d = Math.hypot(h.x - localX, h.y - localY);
+            if (d < minDist) {
+                minDist = d;
+                bestHole = h;
+            }
+        }
+        return bestHole;
     }
 
     handleRobotRotation(pos) {
@@ -812,6 +1088,12 @@ export class Editor {
                 ctx.beginPath();
                 ctx.arc(obj.x, obj.y, obj.radius + 5, 0, Math.PI*2);
                 ctx.stroke();
+            } else if (this.selectedEntity.type === 'hole') {
+                 const { body, hole } = this.selectedEntity.object;
+                 const pos = this.getHoleWorldPos(body, hole);
+                 ctx.strokeStyle = '#2ecc71';
+                 ctx.lineWidth = 2;
+                 ctx.strokeRect(pos.x - 8, pos.y - 8, 16, 16);
             } else if (this.selectedEntity.type === 'joint') {
                 const c = this.selectedEntity.object;
                 const pA = Matter.Constraint.pointAWorld(c);
@@ -820,6 +1102,42 @@ export class Editor {
                 ctx.beginPath();
                 ctx.arc(pA.x, pA.y, 12, 0, Math.PI * 2);
                 ctx.stroke();
+
+                // Draw Angle Limits if present
+                if (c.angleLimits) {
+                    const min = c.angleLimits.min;
+                    const max = c.angleLimits.max;
+                    // We need a reference frame. BodyA's angle?
+                    // Limits are usually relative to the initial angle or BodyA.
+                    // Let's assume limits are relative to Body A.
+                    const angleA = c.bodyA.angle;
+
+                    ctx.beginPath();
+                    ctx.arc(pA.x, pA.y, 30, angleA + min, angleA + max);
+                    ctx.strokeStyle = 'rgba(231, 76, 60, 0.5)';
+                    ctx.lineWidth = 10;
+                    ctx.stroke();
+
+                    // Handles
+                    const r = 30;
+                    const minPos = {
+                        x: pA.x + r * Math.cos(angleA + min),
+                        y: pA.y + r * Math.sin(angleA + min)
+                    };
+                    const maxPos = {
+                        x: pA.x + r * Math.cos(angleA + max),
+                        y: pA.y + r * Math.sin(angleA + max)
+                    };
+
+                    ctx.fillStyle = '#e74c3c';
+                    ctx.beginPath();
+                    ctx.arc(minPos.x, minPos.y, 5, 0, Math.PI*2);
+                    ctx.fill();
+                    ctx.beginPath();
+                    ctx.arc(maxPos.x, maxPos.y, 5, 0, Math.PI*2);
+                    ctx.fill();
+                }
+
             } else if (this.selectedEntity.type === 'platform' || this.selectedEntity.type === 'player_part') {
                 ctx.translate(obj.position.x, obj.position.y);
                 ctx.rotate(obj.angle);

@@ -6,8 +6,11 @@ export class Physics {
         this.engine = Matter.Engine.create();
 
         // Increase iterations for stiffer constraints (fixes "gap" issue in joints)
-        this.engine.positionIterations = 10;
-        this.engine.velocityIterations = 10;
+        // User requested extremely rigid "screw" simulation.
+        // Increasing significantly to 50 iterations to force strict constraint solving.
+        this.engine.positionIterations = 50;
+        this.engine.velocityIterations = 50;
+        this.engine.constraintIterations = 10; // Also boost constraint solver specifically if available (Matter.js specific)
 
         this.world = this.engine.world;
 

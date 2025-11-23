@@ -31,13 +31,16 @@ export class Player {
                 density: 0.01,
                 friction: 1.0
             });
-            body._editorData = p; // Store for re-export?
+            body._editorData = { w: p.w, h: p.h }; // Use explicit editor data
             this.bodies.push(body);
             bodyMap.push(body);
         });
 
         // 2. Create Constraints
         data.constraints.forEach(c => {
+            // Verify indices exist
+            if (c.bodyA >= bodyMap.length || c.bodyB >= bodyMap.length) return;
+
             const opts = {
                 bodyA: bodyMap[c.bodyA],
                 bodyB: bodyMap[c.bodyB],
@@ -65,13 +68,7 @@ export class Player {
     }
 
     createVWalker(x, y) {
-        // Legacy implementation kept for fallback or default
-        // We can convert this to data structure to unify logic, but for now keep as is
-        // ... (Existing code)
-        // To save time, I'll assume the existing code is fine, but strictly speaking
-        // we should migrate it to use buildFromData if we want to edit it easily.
-        // Let's just copy the V-Walker logic back in since I overwrote the file.
-
+        // Legacy implementation
         const width = 20;
         const length = 100;
         const group = Matter.Body.nextGroup(true);
@@ -82,12 +79,15 @@ export class Player {
             density: 0.01,
             friction: 1.0
         });
+        legA._editorData = { w: length, h: width };
+
         const legB = Matter.Bodies.rectangle(x + length/2 - 5, y, length, width, {
             collisionFilter: { group: group },
             chamfer: { radius: 10 },
             density: 0.01,
             friction: 1.0
         });
+        legB._editorData = { w: length, h: width };
 
         Matter.Body.setAngle(legA, -Math.PI / 6);
         Matter.Body.setAngle(legB, Math.PI / 6);
@@ -117,8 +117,7 @@ export class Player {
         Matter.Composite.add(this.composite, [legA, legB, pivot, muscle]);
     }
 
-    // Missing LWalker re-implementation (omitted for brevity as we focus on data builder)
-    createLWalker(x, y) { this.createVWalker(x,y); } // Placeholder
+    createLWalker(x, y) { this.createVWalker(x,y); }
 
     contract() {
         for (let m of this.muscles) {
@@ -145,12 +144,20 @@ export class Player {
     exportData() {
         if (this.bodies.length === 0) return null;
 
+        // Use first body as reference anchor? Or center of mass?
+        // Using first body is stable if we don't delete it.
+        // If we delete the first body, indices shift.
+        // Ideally calculate a bounding center.
+        // For now, let's use the first body's current position as the "Start" reference
+        // and save everything relative to it.
+
         const anchor = this.bodies[0];
         const startX = anchor.position.x;
         const startY = anchor.position.y;
 
         // Export Parts relative to anchor
         const parts = this.bodies.map(b => {
+             // Retrieve dimension from editorData
              const w = b._editorData ? b._editorData.w : 20;
              const h = b._editorData ? b._editorData.h : 100;
 
@@ -171,19 +178,23 @@ export class Player {
              const idxA = bodyIndex.get(c.bodyA.id);
              const idxB = bodyIndex.get(c.bodyB.id);
 
+             // If body was deleted but constraint remains (shouldn't happen with correct logic), skip
+             if (idxA === undefined || idxB === undefined) return null;
+
              const isMuscle = this.muscles.find(m => m.constraint === c);
 
              return {
                  type: isMuscle ? 'muscle' : 'pivot',
                  bodyA: idxA,
                  bodyB: idxB,
-                 pointA: c.pointA,
+                 pointA: c.pointA, // These are local points, safe to export
                  pointB: c.pointB,
                  length: c.length,
                  stiffness: c.stiffness,
                  damping: c.damping
+                 // Add contractedLength for muscles?
              };
-        });
+        }).filter(c => c !== null);
 
         return {
             startPos: { x: startX, y: startY },

@@ -1,32 +1,26 @@
-:root {
-    --bg-color: #f0f0f0;
-    --ui-color: #333;
-    --accent-color: #ff5722;
-    --metal-color: #7f8c8d;
-    --hole-color: #2c3e50;
-}
-
-body, html {
+body {
     margin: 0;
-    padding: 0;
-    width: 100%;
-    height: 100%;
     overflow: hidden;
-    background-color: var(--bg-color);
+    background: #2c3e50;
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    touch-action: none; /* Prevent default touch actions */
+    touch-action: none;
+    -webkit-user-select: none;
+    user-select: none;
 }
 
 #game-container {
     position: relative;
-    width: 100%;
-    height: 100%;
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
 }
 
 canvas {
-    display: block;
-    width: 100%;
-    height: 100%;
+    background: #f0f0f0;
+    box-shadow: 0 0 20px rgba(0,0,0,0.5);
+    /* Canvas size is controlled by JS, but max-width ensures it fits */
 }
 
 #ui-layer {
@@ -35,39 +29,45 @@ canvas {
     left: 0;
     width: 100%;
     height: 100%;
-    pointer-events: none;
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-    padding: 20px;
-    box-sizing: border-box;
+    pointer-events: none; /* Let clicks pass through to canvas */
 }
 
 #level-info {
-    font-size: 24px;
-    font-weight: bold;
-    color: var(--ui-color);
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    background: rgba(0, 0, 0, 0.5);
+    color: white;
+    padding: 5px 10px;
+    border-radius: 5px;
     pointer-events: auto;
 }
 
-.icon-btn {
-    background: rgba(255, 255, 255, 0.8);
-    border: 2px solid var(--ui-color);
+.floating-btn {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    width: 60px;
+    height: 60px;
     border-radius: 50%;
-    width: 50px;
-    height: 50px;
-    font-size: 24px;
+    background: #e74c3c;
+    color: white;
+    border: none;
+    font-size: 16px;
+    font-weight: bold;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.3);
     cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
     pointer-events: auto;
-    align-self: flex-end;
     transition: transform 0.1s;
+    z-index: 100;
 }
 
-.icon-btn:active {
-    transform: scale(0.9);
+.floating-btn:active {
+    transform: scale(0.95);
+}
+
+.edit-mode #mode-toggle {
+    background: #2ecc71; /* Green for Play */
 }
 
 #overlay {
@@ -76,12 +76,11 @@ canvas {
     left: 0;
     width: 100%;
     height: 100%;
-    background: rgba(0, 0, 0, 0.5);
+    background: rgba(0,0,0,0.7);
     display: flex;
-    align-items: center;
     justify-content: center;
-    pointer-events: auto;
-    z-index: 10;
+    align-items: center;
+    z-index: 200;
 }
 
 .hidden {
@@ -93,65 +92,53 @@ canvas {
     padding: 30px;
     border-radius: 10px;
     text-align: center;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-}
-
-#overlay-title {
-    margin-top: 0;
-    color: var(--ui-color);
 }
 
 button {
-    background: var(--ui-color);
-    color: white;
-    border: none;
     padding: 10px 20px;
-    font-size: 18px;
-    border-radius: 5px;
+    font-size: 16px;
     cursor: pointer;
 }
 
-button:hover {
-    opacity: 0.9;
-}
-
-/* Editor Toolbar */
-#editor-toolbar {
+/* Context Menu */
+#context-menu {
     position: absolute;
-    bottom: 0;
-    left: 0;
-    width: 100%;
-    background: rgba(255, 255, 255, 0.9);
-    border-top: 2px solid var(--ui-color);
-    padding: 10px;
-    display: flex;
-    justify-content: center;
-    gap: 10px;
-    z-index: 50;
-    box-sizing: border-box;
-    flex-wrap: wrap;
-    height: 60px; /* Fixed height to know overlap */
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+    padding: 5px 0;
+    min-width: 150px;
+    z-index: 150;
+    pointer-events: auto;
+    animation: fadeIn 0.1s ease-out;
 }
 
-#editor-toolbar button {
-    font-size: 16px;
-    padding: 8px 16px;
-    background: #34495e;
+@keyframes fadeIn {
+    from { opacity: 0; transform: scale(0.95); }
+    to { opacity: 1; transform: scale(1); }
 }
 
-#editor-toolbar button.active {
-    background: #e74c3c;
+#context-menu ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
 }
 
-#editor-toolbar button.danger {
-    background: #c0392b;
+#context-menu li {
+    padding: 10px 20px;
+    cursor: pointer;
+    border-bottom: 1px solid #eee;
+    color: #333;
 }
 
-.edit-mode #ui-layer {
-    /* Hide Play UI in Edit Mode */
-    pointer-events: none;
+#context-menu li:last-child {
+    border-bottom: none;
 }
 
-.edit-mode #level-info, .edit-mode #reset-btn {
-    opacity: 0.2;
+#context-menu li:hover {
+    background: #f5f5f5;
+}
+
+#context-menu li.danger {
+    color: #e74c3c;
 }

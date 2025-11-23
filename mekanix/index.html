@@ -17,10 +17,14 @@
 <body>
     <div id="game-container">
         <canvas id="world"></canvas>
+
+        <!-- Persistent UI Layer -->
         <div id="ui-layer">
             <div id="level-info">Level <span id="current-level">1</span></div>
-            <button id="reset-btn" class="icon-btn">↺</button>
+            <button id="mode-toggle" class="floating-btn">✎ Edit</button>
         </div>
+
+        <!-- Level Complete Overlay -->
         <div id="overlay" class="hidden">
             <div class="message-box">
                 <h2 id="overlay-title">Level Complete!</h2>
@@ -28,14 +32,12 @@
             </div>
         </div>
 
-         <div id="editor-toolbar" class="hidden">
-             <button id="tool-play">▶ Play</button>
-             <button id="tool-add-plat">+ Plat</button>
-             <button id="tool-add-part">+ Part</button>
-             <button id="tool-delete" class="danger">Delete</button>
-             <button id="tool-save">Save</button>
-             <button id="tool-load">Load</button>
-         </div>
+        <!-- Context Menu (hidden by default) -->
+        <div id="context-menu" class="hidden">
+            <ul id="context-menu-list">
+                <!-- Items populated dynamically or static list -->
+            </ul>
+        </div>
     </div>
     <script type="module" src="game.js"></script>
 </body>

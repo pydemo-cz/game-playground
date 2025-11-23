@@ -1142,13 +1142,15 @@ export class Editor {
     }
 
     onUp() {
-        // Enforce constraint validity after dragging
-        if (this.activeHandle === 'drag_joint' && this.selectedEntity && this.selectedEntity.type === 'joint') {
-            this.validateJoint(this.selectedEntity.object);
-        } else if (this.activeHandle === 'move_robot' || this.activeHandle === 'move') {
-             // If we moved the whole robot, or parts, check all constraints?
-             // Usually they move together, but validation is cheap enough for single robots.
+        // Enforce constraint validity after ANY interaction that might affect structure
+        // This includes drag_joint, move, rotate, resize, move_robot.
+        // We broadly validate all constraints on the player to ensure the whole structure remains consistent.
+        // This acts as a "physics snap" to keep the Merkur-like rigidity.
+
+        if (this.activeHandle) {
              if (this.levelManager.player) {
+                  // Validate ALL player constraints to be safe.
+                  // In a larger game, we might optimize to only touched bodies, but for a robot editor, this is negligible.
                   this.levelManager.player.constraints.forEach(c => this.validateJoint(c));
              }
         }

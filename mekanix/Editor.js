@@ -20,6 +20,39 @@ export class Editor {
         this.contextMenuList = document.getElementById('context-menu-list');
         this.isContextMenuOpen = false;
 
+        // System Menu Binding
+        this.systemMenu = document.getElementById('system-menu');
+        this.menuBtn = document.getElementById('menu-btn');
+        this.isSystemMenuOpen = false;
+
+        this.menuBtn.addEventListener('click', (e) => {
+            e.stopPropagation(); // Don't trigger canvas clicks
+            this.toggleSystemMenu();
+        });
+
+        // System Menu Items
+        document.getElementById('menu-reset').addEventListener('click', () => {
+            this.levelManager.resetLevel();
+            this.closeSystemMenu();
+        });
+        document.getElementById('menu-save').addEventListener('click', () => {
+            const data = this.levelManager.exportLevel();
+            localStorage.setItem('mekanix_saved_level', JSON.stringify(data));
+            alert('Level Saved!');
+            this.closeSystemMenu();
+        });
+        document.getElementById('menu-load').addEventListener('click', () => {
+            const json = localStorage.getItem('mekanix_saved_level');
+            if (json) {
+                const data = JSON.parse(json);
+                this.levelManager.loadLevel(data);
+                this.gm.workingLevelData = data;
+            } else {
+                alert('No saved level found.');
+            }
+            this.closeSystemMenu();
+        });
+
         // UI Binding
         this.modeBtn = document.getElementById('mode-toggle');
         this.modeBtn.addEventListener('click', () => {
@@ -30,12 +63,29 @@ export class Editor {
         // Inputs
         this.handleInput = this.handleInput.bind(this);
 
-        // Hide context menu on click elsewhere
+        // Hide menus on click elsewhere
         document.addEventListener('click', (e) => {
             if (this.isContextMenuOpen && !this.contextMenu.contains(e.target)) {
                 this.closeContextMenu();
             }
+            if (this.isSystemMenuOpen && !this.systemMenu.contains(e.target) && e.target !== this.menuBtn) {
+                this.closeSystemMenu();
+            }
         });
+    }
+
+    toggleSystemMenu() {
+        this.isSystemMenuOpen = !this.isSystemMenuOpen;
+        if (this.isSystemMenuOpen) {
+            this.systemMenu.classList.remove('hidden');
+        } else {
+            this.systemMenu.classList.add('hidden');
+        }
+    }
+
+    closeSystemMenu() {
+        this.isSystemMenuOpen = false;
+        this.systemMenu.classList.add('hidden');
     }
 
     updateModeBtn() {
@@ -57,6 +107,7 @@ export class Editor {
         this.removeInputs();
         this.selectEntity(null);
         this.closeContextMenu();
+        this.closeSystemMenu();
         this.updateModeBtn();
     }
 
@@ -91,7 +142,7 @@ export class Editor {
 
     handleInput(e) {
         // Allow default only if clicking UI elements (like buttons)
-        if (e.target.tagName === 'BUTTON' || e.target.closest('#context-menu')) return;
+        if (e.target.tagName === 'BUTTON' || e.target.closest('#context-menu') || e.target.closest('#system-menu')) return;
 
         e.preventDefault();
         const type = e.type;
@@ -122,6 +173,10 @@ export class Editor {
         // If context menu is open, close it (unless we clicked inside, handled by global listener)
         if (this.isContextMenuOpen) {
             this.closeContextMenu();
+            return;
+        }
+        if (this.isSystemMenuOpen) {
+            this.closeSystemMenu();
             return;
         }
 
@@ -169,10 +224,14 @@ export class Editor {
                 };
             }
         } else {
-            // Clicked Empty Space -> Open Global Context Menu
-            // Deselect first
-            this.selectEntity(null);
-            this.openGlobalContextMenu(screenX, screenY, pos);
+            // Clicked Empty Space
+            if (this.selectedEntity) {
+                // Just deselect
+                this.selectEntity(null);
+            } else {
+                // Open Global Context Menu only if nothing was selected
+                this.openGlobalContextMenu(screenX, screenY, pos);
+            }
         }
     }
 
@@ -248,31 +307,7 @@ export class Editor {
         };
         this.contextMenuList.appendChild(addPlat);
 
-        const save = document.createElement('li');
-        save.textContent = 'Save Level';
-        save.onclick = () => {
-            const data = this.levelManager.exportLevel();
-            localStorage.setItem('mekanix_saved_level', JSON.stringify(data));
-            alert('Level Saved!');
-            this.closeContextMenu();
-        };
-        this.contextMenuList.appendChild(save);
-
-        const load = document.createElement('li');
-        load.textContent = 'Load Level';
-        load.onclick = () => {
-            const json = localStorage.getItem('mekanix_saved_level');
-            if (json) {
-                const data = JSON.parse(json);
-                this.levelManager.loadLevel(data);
-                // Also update gm working data so if we play it uses this
-                this.gm.workingLevelData = data;
-            } else {
-                alert('No saved level found.');
-            }
-            this.closeContextMenu();
-        };
-        this.contextMenuList.appendChild(load);
+        // Removed Save/Load from here as per new plan (moved to System Menu)
     }
 
     closeContextMenu() {

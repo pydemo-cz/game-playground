@@ -21,7 +21,10 @@
         <!-- Persistent UI Layer -->
         <div id="ui-layer">
             <div id="level-info">Level <span id="current-level">1</span></div>
-            <button id="reset-btn" class="icon-btn" style="position: absolute; top: 20px; left: 100px; padding: 5px 10px; cursor: pointer;">↺</button>
+
+            <!-- Menu Button -->
+            <button id="menu-btn" class="icon-btn">☰</button>
+
             <button id="mode-toggle" class="floating-btn">✎ Edit</button>
         </div>
 
@@ -31,6 +34,15 @@
                 <h2 id="overlay-title">Level Complete!</h2>
                 <button id="next-level-btn">Next Level</button>
             </div>
+        </div>
+
+        <!-- System Menu (hidden by default) -->
+        <div id="system-menu" class="hidden">
+            <ul id="system-menu-list">
+                <li id="menu-reset">↺ Reset Level</li>
+                <li id="menu-save">💾 Save Level</li>
+                <li id="menu-load">📂 Load Level</li>
+            </ul>
         </div>
 
         <!-- Context Menu (hidden by default) -->

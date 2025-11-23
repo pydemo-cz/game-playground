@@ -1,5 +1,69 @@
 import Matter from 'matter-js';
 
+export function getHolePositions(body) {
+    let w, h;
+    if (body._editorData) {
+        w = body._editorData.w;
+        h = body._editorData.h;
+    } else {
+        // Fallback: approximate from vertices
+        const min = { x: Infinity, y: Infinity };
+        const max = { x: -Infinity, y: -Infinity };
+        body.vertices.forEach(v => {
+            const dx = v.x - body.position.x;
+            const dy = v.y - body.position.y;
+            const cos = Math.cos(-body.angle);
+            const sin = Math.sin(-body.angle);
+            const lx = dx * cos - dy * sin;
+            const ly = dx * sin + dy * cos;
+
+            if (lx < min.x) min.x = lx;
+            if (lx > max.x) max.x = lx;
+            if (ly < min.y) min.y = ly;
+            if (ly > max.y) max.y = ly;
+        });
+        w = max.x - min.x;
+        h = max.y - min.y;
+    }
+
+    const holes = [];
+    const holeSpacing = 20;
+
+    // Use a simpler logic: Start from one end + offset, go until other end - offset.
+    // Offset usually 15 or 10.
+    const startOffset = 15;
+
+    if (w > h) {
+        // Horizontal strip
+        // Ensure we center the holes? Or start fixed?
+        // Merkur usually has fixed spacing.
+        const availableLen = w - 2 * startOffset;
+        if (availableLen >= 0) {
+            const count = Math.floor(availableLen / holeSpacing) + 1;
+            // Center the group of holes?
+            const totalHolesLen = (count - 1) * holeSpacing;
+            const startX = -totalHolesLen / 2;
+
+            for (let i = 0; i < count; i++) {
+                holes.push({ x: startX + i * holeSpacing, y: 0 });
+            }
+        }
+    } else {
+        // Vertical strip
+        const availableLen = h - 2 * startOffset;
+        if (availableLen >= 0) {
+            const count = Math.floor(availableLen / holeSpacing) + 1;
+            const totalHolesLen = (count - 1) * holeSpacing;
+            const startY = -totalHolesLen / 2;
+
+            for (let i = 0; i < count; i++) {
+                holes.push({ x: 0, y: startY + i * holeSpacing });
+            }
+        }
+    }
+    return { holes, w, h }; // Return w, h too to avoid re-calc
+}
+
 // Custom renderer logic for "Merkur" style
 export function drawMerkur(ctx, physics) {
     // Draw World Border (Background for logical area)
@@ -13,9 +77,6 @@ export function drawMerkur(ctx, physics) {
 
     // Draw Bodies
     for (let body of bodies) {
-        // Skip ground if we want to style it differently (it usually has label 'Rectangle Body')
-        // But for now draw everything
-
         if (body.isStatic) {
              // Ground/Walls style
             ctx.fillStyle = '#333';
@@ -34,34 +95,7 @@ export function drawMerkur(ctx, physics) {
         ctx.translate(body.position.x, body.position.y);
         ctx.rotate(body.angle);
 
-        // Draw the strip
-        // Assuming rectangle for now
-        // We need width/height.
-        // Accessing body bounds is one way, or assuming from factory.
-        // Matter.js bodies don't easily expose w/h directly if convex hull, but for rectangles area/density works?
-        // Actually vertices are easiest source of truth.
-        // But to draw rounded rect with holes we need dimensions.
-        // Let's approximate dimensions from vertices bounds.
-        const min = { x: Infinity, y: Infinity };
-        const max = { x: -Infinity, y: -Infinity };
-        body.vertices.forEach(v => {
-             // Rotate vertex back to local space
-             const dx = v.x - body.position.x;
-             const dy = v.y - body.position.y;
-             // Rotate by -angle
-             const cos = Math.cos(-body.angle);
-             const sin = Math.sin(-body.angle);
-             const lx = dx * cos - dy * sin;
-             const ly = dx * sin + dy * cos;
-
-             if (lx < min.x) min.x = lx;
-             if (lx > max.x) max.x = lx;
-             if (ly < min.y) min.y = ly;
-             if (ly > max.y) max.y = ly;
-        });
-
-        const w = max.x - min.x;
-        const h = max.y - min.y;
+        const { holes, w, h } = getHolePositions(body);
 
         // Metal gradient
         const grad = ctx.createLinearGradient(-w/2, -h/2, w/2, h/2);
@@ -81,28 +115,12 @@ export function drawMerkur(ctx, physics) {
 
         // Draw Holes (Merkur style)
         ctx.fillStyle = '#2c3e50'; // Dark hole color
-        const holeSpacing = 20;
         const holeRadius = 3;
 
-        // Determine if it's a long strip horizontally or vertically
-        if (w > h) {
-            // Horizontal strip
-            const count = Math.floor((w - 20) / holeSpacing);
-            for (let i = 0; i < count; i++) {
-                const x = -w/2 + 15 + i * holeSpacing; // Offset start
-                ctx.beginPath();
-                ctx.arc(x, 0, holeRadius, 0, Math.PI * 2);
-                ctx.fill();
-            }
-        } else {
-             // Vertical strip
-            const count = Math.floor((h - 20) / holeSpacing);
-            for (let i = 0; i < count; i++) {
-                const y = -h/2 + 15 + i * holeSpacing;
-                ctx.beginPath();
-                ctx.arc(0, y, holeRadius, 0, Math.PI * 2);
-                ctx.fill();
-            }
+        for(let hole of holes) {
+            ctx.beginPath();
+            ctx.arc(hole.x, hole.y, holeRadius, 0, Math.PI * 2);
+            ctx.fill();
         }
 
         ctx.restore();
@@ -130,5 +148,4 @@ export function drawMerkur(ctx, physics) {
         ctx.lineTo(pA.x + 3, pA.y);
         ctx.stroke();
     }
-
 }

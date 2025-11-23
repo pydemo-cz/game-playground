@@ -1,8 +1,0 @@
-127.0.0.1 - - [22/Nov/2025 18:30:40] "GET /mekanix/index.html HTTP/1.1" 200 -
-127.0.0.1 - - [22/Nov/2025 18:30:40] "GET /mekanix/styles.css HTTP/1.1" 200 -
-127.0.0.1 - - [22/Nov/2025 18:30:40] "GET /mekanix/game.js HTTP/1.1" 200 -
-127.0.0.1 - - [22/Nov/2025 18:30:40] "GET /mekanix/Physics.js HTTP/1.1" 200 -
-127.0.0.1 - - [22/Nov/2025 18:30:40] "GET /mekanix/Renderer.js HTTP/1.1" 200 -
-127.0.0.1 - - [22/Nov/2025 18:30:40] "GET /mekanix/LevelManager.js HTTP/1.1" 200 -
-127.0.0.1 - - [22/Nov/2025 18:30:40] "GET /mekanix/Goal.js HTTP/1.1" 200 -
-127.0.0.1 - - [22/Nov/2025 18:30:40] "GET /mekanix/Player.js HTTP/1.1" 200 -

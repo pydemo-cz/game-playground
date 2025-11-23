@@ -22,65 +22,11 @@ levelManager.resetLevel();
 const overlay = document.getElementById('overlay');
 const nextLevelBtn = document.getElementById('next-level-btn');
 const resetBtn = document.getElementById('reset-btn');
-const toolbar = document.getElementById('editor-toolbar');
 
-// Editor Toggle Button (Let's reuse the Reset button as a generic Menu for now, or double tap?)
-// User asked for "Editor" functionality. Let's add a visible "Edit" button or key.
-// Let's add a small "Edit" button in the corner for now.
-const editToggleBtn = document.createElement('button');
-editToggleBtn.innerText = '✎';
-editToggleBtn.className = 'icon-btn';
-editToggleBtn.style.position = 'absolute';
-editToggleBtn.style.top = '10px';
-editToggleBtn.style.right = '10px';
-document.body.appendChild(editToggleBtn);
-
-editToggleBtn.addEventListener('click', () => {
-    gameManager.toggleMode();
-    if (gameManager.state === 'EDIT') {
-        toolbar.classList.remove('hidden');
-        editToggleBtn.innerText = '✕';
-    } else {
-        toolbar.classList.add('hidden');
-        editToggleBtn.innerText = '✎';
-    }
-});
-
-// Toolbar Events
-document.getElementById('tool-play').addEventListener('click', () => {
-    gameManager.enterPlayMode();
-    toolbar.classList.add('hidden');
-    editToggleBtn.innerText = '✎';
-});
-
-document.getElementById('tool-add-plat').addEventListener('click', () => {
-    editor.addPlatform();
-});
-
-document.getElementById('tool-add-part').addEventListener('click', () => {
-    editor.addConnectedPart();
-});
-
-document.getElementById('tool-delete').addEventListener('click', () => {
-    editor.deleteSelected();
-});
-
-document.getElementById('tool-save').addEventListener('click', () => {
-    const data = levelManager.exportLevel();
-    localStorage.setItem('mekanix_level_dev', JSON.stringify(data));
-    alert('Level saved!');
-});
-
-document.getElementById('tool-load').addEventListener('click', () => {
-    const json = localStorage.getItem('mekanix_level_dev');
-    if (json) {
-        levelManager.loadLevel(JSON.parse(json));
-        // If in edit mode, we need to ensure editor reflects new objects?
-        // Editor checks active lists in update/draw, so it should be fine.
-    } else {
-        alert('No saved level found.');
-    }
-});
+// The new Editor.js handles the Mode Toggle Button and Context Menus itself.
+// We just need to clean up the old event listeners from this file if any were here.
+// The old 'editor-toolbar' and 'editToggleBtn' logic is removed/replaced by Editor.js internal logic
+// which binds to 'mode-toggle' button in HTML.
 
 // Input handling (Game Mode)
 let isPressed = false;
@@ -89,9 +35,13 @@ const handleInputStart = (e) => {
     // Only handle game input if PLAYING
     if (gameManager.state !== 'PLAY') return;
 
-    if (e.target.tagName !== 'BUTTON') {
-         e.preventDefault();
+    // Ignore clicks on UI buttons
+    if (e.target.tagName === 'BUTTON' || e.target.closest('.message-box')) {
+         return;
     }
+
+    // Prevent default scrolling unless it's a UI element that needs it (unlikely here)
+    if (e.cancelable) e.preventDefault();
 
     if (!isPressed && levelManager.player) {
         isPressed = true;
@@ -102,15 +52,16 @@ const handleInputStart = (e) => {
 const handleInputEnd = (e) => {
     if (gameManager.state !== 'PLAY') return;
 
-    if (e.target.tagName !== 'BUTTON') {
-         e.preventDefault();
-    }
+    if (e.target.tagName === 'BUTTON') return;
+
     if (isPressed && levelManager.player) {
         isPressed = false;
         levelManager.player.relax();
     }
 };
 
+// Global input listeners for Gameplay
+// Note: Editor handles its own inputs when in EDIT mode.
 window.addEventListener('mousedown', handleInputStart);
 window.addEventListener('touchstart', handleInputStart, { passive: false });
 window.addEventListener('mouseup', handleInputEnd);
@@ -118,15 +69,13 @@ window.addEventListener('touchend', handleInputEnd);
 
 // UI Events
 nextLevelBtn.addEventListener('click', () => {
-   // Next level logic... (omitted for custom levels for now, just reset)
+   // Next level logic...
     levelManager.resetLevel();
     overlay.classList.add('hidden');
 });
 
 resetBtn.addEventListener('click', () => {
     levelManager.resetLevel();
-    // If we are editing, this might reset to initial load?
-    // Reset implies restarting the level.
 });
 
 // Game Loop

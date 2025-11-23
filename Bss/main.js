@@ -725,6 +725,9 @@ window.addEventListener('resize', () => {
     renderer.setSize(window.innerWidth, window.innerHeight);
 });
 
+// --- Game Loop ---
+const clock = new THREE.Clock();
+
 function updatePlayer(dt) {
     if (!state.player) return;
     if (state.isShopOpen || state.isHiveOpen || state.isInventoryOpen) return;

@@ -21,12 +21,7 @@ levelManager.resetLevel();
 // UI Elements
 const overlay = document.getElementById('overlay');
 const nextLevelBtn = document.getElementById('next-level-btn');
-const resetBtn = document.getElementById('reset-btn');
-
-// The new Editor.js handles the Mode Toggle Button and Context Menus itself.
-// We just need to clean up the old event listeners from this file if any were here.
-// The old 'editor-toolbar' and 'editToggleBtn' logic is removed/replaced by Editor.js internal logic
-// which binds to 'mode-toggle' button in HTML.
+// Reset button is now handled by Editor.js via System Menu
 
 // Input handling (Game Mode)
 let isPressed = false;
@@ -72,10 +67,6 @@ nextLevelBtn.addEventListener('click', () => {
    // Next level logic...
     levelManager.resetLevel();
     overlay.classList.add('hidden');
-});
-
-resetBtn.addEventListener('click', () => {
-    levelManager.resetLevel();
 });
 
 // Game Loop

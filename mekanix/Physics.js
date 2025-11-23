@@ -4,6 +4,11 @@ export class Physics {
     constructor(elementId) {
         this.canvas = document.getElementById(elementId);
         this.engine = Matter.Engine.create();
+
+        // Increase iterations for stiffer constraints (fixes "gap" issue in joints)
+        this.engine.positionIterations = 10;
+        this.engine.velocityIterations = 10;
+
         this.world = this.engine.world;
 
         // Create a custom renderer since we want to draw the "Merkur" style ourselves

@@ -13,7 +13,7 @@ const JUMP_FORCE = -15;
 const SPEED = 6;
 
 let assets = {
-    sheet: new Image()
+    sheet: null // Will be processed canvas
 };
 
 let keys = {
@@ -63,9 +63,11 @@ let debugMode = false;
 
 // Initialization
 function init() {
-    assets.sheet.src = 'assets/sheet.png';
-    assets.sheet.onload = () => {
-        console.log("Sprite sheet loaded. Dims:", assets.sheet.width, assets.sheet.height);
+    const rawImg = new Image();
+    rawImg.src = 'assets/sheet.png';
+    rawImg.onload = () => {
+        console.log("Raw sheet loaded. Dims:", rawImg.width, rawImg.height);
+        assets.sheet = processSpriteSheet(rawImg);
         startGame();
     };
 
@@ -74,6 +76,41 @@ function init() {
     window.addEventListener('resize', resize);
 
     createLevel();
+}
+
+function processSpriteSheet(img) {
+    const c = document.createElement('canvas');
+    c.width = img.width;
+    c.height = img.height;
+    const ctx = c.getContext('2d');
+    ctx.drawImage(img, 0, 0);
+
+    const imageData = ctx.getImageData(0, 0, c.width, c.height);
+    const data = imageData.data;
+
+    // Simple luminance threshold to remove white paper background
+    for(let i = 0; i < data.length; i += 4) {
+        const r = data[i];
+        const g = data[i+1];
+        const b = data[i+2];
+
+        // Average brightness
+        const brightness = (r + g + b) / 3;
+
+        // If pixel is bright (paper), make transparent
+        // Threshold adjusted to 160 to catch greyish shadows but preserve dark ink
+        if (brightness > 160) {
+            data[i+3] = 0;
+        } else {
+            // Enhance ink (make it darker/blacker)
+            data[i] = r * 0.5;
+            data[i+1] = g * 0.5;
+            data[i+2] = b * 0.5;
+        }
+    }
+
+    ctx.putImageData(imageData, 0, 0);
+    return c;
 }
 
 function createLevel() {

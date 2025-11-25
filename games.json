@@ -1,6 +1,11 @@
 {
     "games": [
         {
+            "title": "Jumpy",
+            "description": "A 2D platformer with a level editor. Create and play your own levels!",
+            "url": "jumpy/index.html"
+        },
+        {
             "title": "Minecraft Clone",
             "description": "A 3D sandbox adventure. Explore a procedurally generated world made of blocks.",
             "url": "minecraft-clone/index.html"

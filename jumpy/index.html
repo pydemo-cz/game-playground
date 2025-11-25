@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jumpy</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <canvas id="gameCanvas"></canvas>
+
+    <div id="editor-ui">
+        <div class="toolbar-section">
+            <button id="play-btn">Play</button>
+            <button id="edit-btn" class="active">Edit</button>
+        </div>
+
+        <div class="toolbar-section">
+            <button class="tool-btn active" data-tool="platform">Platform</button>
+            <button class="tool-btn" data-tool="spike">Spike</button>
+            <button class="tool-btn" data-tool="coin">Coin</button>
+            <button class="tool-btn" data-tool="finish">Finish</button>
+            <button class="tool-btn" data-tool="erase">Erase</button>
+        </div>
+
+        <div class="toolbar-section">
+            <button id="save-btn">Save</button>
+            <select id="level-select"></select>
+            <button id="delete-btn">Delete</button>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

@@ -1,0 +1,153 @@
+body, html {
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    height: 100%;
+    background-color: #333;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+#game-container {
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+canvas {
+    background-color: #000;
+    image-rendering: pixelated;
+    image-rendering: -moz-crisp-edges;
+    image-rendering: crisp-edges;
+    object-fit: contain;
+}
+
+.hidden {
+    display: none !important;
+}
+
+#ui-container {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 10;
+}
+
+#editor-container {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    background-color: rgba(40, 40, 40, 0.9);
+    color: white;
+    font-family: Arial, sans-serif;
+    padding: 10px;
+    box-sizing: border-box;
+}
+
+.tabs {
+    display: flex;
+    border-bottom: 1px solid #555;
+    margin-bottom: 10px;
+}
+
+.tab-button {
+    background: #333;
+    border: 1px solid #555;
+    color: white;
+    padding: 10px 15px;
+    cursor: pointer;
+    border-bottom: none;
+}
+
+.tab-button.active {
+    background: #555;
+}
+
+.io-buttons {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+}
+
+.tab-pane {
+    padding: 10px;
+}
+
+.sprite-preview {
+    width: 60px;
+    height: 80px; /* 3:4 aspect ratio for player */
+    border: 1px solid #777;
+    background-color: #222;
+    vertical-align: middle;
+    margin-left: 10px;
+    object-fit: contain;
+}
+
+.sprite-preview.square {
+    width: 60px;
+    height: 60px;
+}
+
+#level-designer-toolbar {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 150px;
+    height: 100%;
+    background-color: rgba(40, 40, 40, 0.9);
+    color: white;
+    padding: 10px;
+    box-sizing: border-box;
+    font-family: Arial, sans-serif;
+}
+
+#tools-container {
+    display: flex;
+    flex-direction: column;
+}
+
+.tool-button {
+    background: #555;
+    color: white;
+    border: 1px solid #777;
+    padding: 10px;
+    margin-bottom: 5px;
+    cursor: pointer;
+    text-align: left;
+}
+
+.tool-button.active {
+    background: #777;
+    border-color: #999;
+}
+
+#mobile-controls {
+    position: absolute;
+    bottom: 20px;
+    left: 20px;
+    right: 20px;
+    display: flex;
+    justify-content: space-between;
+    z-index: 5;
+    pointer-events: none; /* Pass clicks through the container */
+}
+
+#mobile-controls button {
+    background: rgba(255,255,255,0.2);
+    border: 2px solid rgba(255,255,255,0.5);
+    color: white;
+    font-size: 20px;
+    padding: 20px;
+    border-radius: 50%;
+    width: 80px;
+    height: 80px;
+    pointer-events: all; /* Buttons are clickable */
+}
+
+#mobile-jump {
+    margin-left: auto;
+}

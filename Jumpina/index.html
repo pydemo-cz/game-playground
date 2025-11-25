@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jumpina</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div id="game-container">
+        <canvas id="game-canvas"></canvas>
+    </div>
+
+    <div id="ui-container">
+        <button id="edit-button">EDIT</button>
+        <button id="play-button" class="hidden">PLAY</button>
+    </div>
+
+    <div id="editor-container" class="hidden">
+        <!-- Asset Management Screen -->
+        <div id="asset-manager" class="editor-screen">
+            <div class="tabs">
+                <button class="tab-button" data-tab="player">Player</button>
+                <button class="tab-button" data-tab="platforms">Platforms</button>
+                <button class="tab-button" data-tab="enemies">Enemies</button>
+                <button class="tab-button" data-tab="collectables">Collectables</button>
+                <button class="tab-button" data-tab="exit">Exit</button>
+                <button class="tab-button" data-tab="level">Level</button>
+            </div>
+            <div class="tab-content">
+                <div id="player-tab-content" class="tab-pane">
+                    <h4>Player Sprites</h4>
+                    <div>
+                        <label>Idle Sprite:</label>
+                        <input type="file" id="player-idle-input" accept="image/png, image/jpeg">
+                        <img id="player-idle-preview" class="sprite-preview" src="">
+                    </div>
+                    <div>
+                        <label>Jump Sprite:</label>
+                        <input type="file" id="player-jump-input" accept="image/png, image/jpeg">
+                        <img id="player-jump-preview" class="sprite-preview" src="">
+                    </div>
+                </div>
+                <!-- Other tabs will be dynamically generated or added here -->
+                 <div id="platforms-tab-content" class="tab-pane hidden"></div>
+                 <div id="enemies-tab-content" class="tab-pane hidden"></div>
+                 <div id="collectables-tab-content" class="tab-pane hidden"></div>
+                 <div id="exit-tab-content" class="tab-pane hidden"></div>
+                 <div id="level-tab-content" class="tab-pane">
+                    <p>Select the 'Level' tab to start designing the level on the main canvas.</p>
+                </div>
+            </div>
+             <div class="io-buttons">
+                <button id="save-button">Save</button>
+                <button id="load-button">Load</button>
+                <input type="file" id="load-input" style="display: none;" accept=".json">
+            </div>
+        </div>
+
+        <!-- Level Designer Screen will be handled by the canvas -->
+    </div>
+
+    <!-- Toolbar for Level Designer -->
+    <div id="level-designer-toolbar" class="hidden">
+        <h4>Tools</h4>
+        <div id="tools-container">
+            <button class="tool-button" data-tool='{"type":"player"}'>Player Start</button>
+            <button class="tool-button" data-tool='{"type":"platform"}'>Platform</button>
+            <button class="tool-button" data-tool='{"type":"enemy"}'>Enemy</button>
+            <button class="tool-button" data-tool='{"type":"collectable"}'>Collectable</button>
+            <button class="tool-button" data-tool='{"type":"exit"}'>Exit</button>
+            <button class="tool-button" data-tool='{"type":"eraser"}'>Eraser</button>
+        </div>
+    </div>
+
+    <div id="mobile-controls" class="hidden">
+        <button id="mobile-left">LEFT</button>
+        <button id="mobile-right">RIGHT</button>
+        <button id="mobile-jump">JUMP</button>
+    </div>
+
+    <script src="js/main.js"></script>
+</body>
+</html>

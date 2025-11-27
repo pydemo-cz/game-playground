@@ -1,731 +1,650 @@
 document.addEventListener('DOMContentLoaded', () => {
     const canvas = document.getElementById('game-canvas');
     const ctx = canvas.getContext('2d');
+    const canvasContainer = document.getElementById('canvas-container');
 
     // --- Configuration ---
     const CONFIG = {
-        LOGICAL_WIDTH: 960,
-        LOGICAL_HEIGHT: 540,
         GRID_SIZE: 60,
-        PLAYER: {
-            HEIGHT: 120,
-            WIDTH: 90,
+        PLAYER_WIDTH: 54, // 90px at 60px grid = 0.9 grid units. Scaled down for now.
+        PLAYER_HEIGHT: 72, // 120px at 60px grid = 1.2 grid units.
+        MOVE_SPEED: 5,
+        JUMP_FORCE: 18,
+        GRAVITY: 0.8,
+    };
+
+    // --- Game State ---
+    let gameState = {
+        gameMode: 'EDIT', // EDIT or PLAY
+        activeTool: 'platform',
+        player: {
+            x: 0,
+            y: 0,
+            vx: 0,
+            vy: 0,
+            jumps: 2,
+            facingRight: true,
         },
-        CAMERA_DEADZONE_X: 350,
-        CAMERA_DEADZONE_Y: 200,
-        CAMERA_LERP_FACTOR: 0.05,
+        level: {
+            width: 32, // Default width
+            height: 18, // Default height
+            grid: [],
+        },
+        collectibles: {
+            total: 0,
+            collected: 0,
+        },
+        exit: {
+            x: 0,
+            y: 0,
+            activated: false,
+        },
+        assets: {
+            // base64 strings will be stored here
+            platform: null,
+            player: null,
+            spike: null,
+            coin: null,
+            finish: null,
+            ground: null,
+        },
     };
 
-    // --- Camera ---
-    const camera = {
-        x: 0,
-        y: 0,
+    // --- DOM Elements ---
+    const toolbar = document.getElementById('toolbar');
+    const toolButtons = document.querySelectorAll('.tool-btn');
+
+    const TILE_COLORS = {
+        platform: 'brown',
+        player: 'green',
+        spike: 'red',
+        coin: 'yellow',
+        finish: 'purple',
+        ground: 'saddlebrown',
     };
 
-    // --- Canvas Setup ---
-    canvas.width = CONFIG.LOGICAL_WIDTH;
-    canvas.height = CONFIG.LOGICAL_HEIGHT;
-
-    function resize() {
-        const container = document.getElementById('game-container');
-        const containerWidth = container.clientWidth;
-        const containerHeight = container.clientHeight;
-
-        const scaleX = containerWidth / CONFIG.LOGICAL_WIDTH;
-        const scaleY = containerHeight / CONFIG.LOGICAL_HEIGHT;
-
-        // Use the smaller scale factor to fit the whole canvas
-        let scale = Math.min(scaleX, scaleY);
-
-        // For integer scaling, floor the scale to the nearest whole number
-        scale = Math.floor(scale);
-        if (scale < 1) scale = 1; // Ensure it's at least 1x
-
-        const newCanvasWidth = CONFIG.LOGICAL_WIDTH * scale;
-        const newCanvasHeight = CONFIG.LOGICAL_HEIGHT * scale;
-
-        canvas.style.width = `${newCanvasWidth}px`;
-        canvas.style.height = `${newCanvasHeight}px`;
-    }
+    // Cache for loaded image objects
+    const assetImages = {};
 
     // --- Input Handling ---
-    const input = {
+    const keys = {
         left: false,
         right: false,
         jump: false,
-        _keys: new Set(),
     };
 
-    function handleKeyDown(e) {
-        if (input._keys.has(e.code)) return;
-        input._keys.add(e.code);
-        switch (e.code) {
-            case 'KeyA':
-            case 'ArrowLeft':
-                input.left = true;
-                break;
-            case 'KeyD':
-            case 'ArrowRight':
-                input.right = true;
-                break;
-            case 'Space':
-                input.jump = true;
-                break;
+    function setupInputListeners() {
+        window.addEventListener('keydown', (e) => {
+            switch (e.code) {
+                case 'ArrowLeft':
+                case 'KeyA':
+                    keys.left = true;
+                    break;
+                case 'ArrowRight':
+                case 'KeyD':
+                    keys.right = true;
+                    break;
+                case 'Space':
+                    keys.jump = true;
+                    break;
+            }
+        });
+        window.addEventListener('keyup', (e) => {
+            switch (e.code) {
+                case 'ArrowLeft':
+                case 'KeyA':
+                    keys.left = false;
+                    break;
+                case 'ArrowRight':
+                case 'KeyD':
+                    keys.right = false;
+                    break;
+                case 'Space':
+                    keys.jump = false;
+                    break;
+            }
+        });
+    }
+
+
+    // --- Asset Management ---
+    function handleAssetUpload(file, assetName) {
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const base64 = e.target.result;
+            gameState.assets[assetName] = base64;
+
+            // Create and cache the image object
+            const img = new Image();
+            img.src = base64;
+            assetImages[assetName] = img;
+
+            console.log(`Asset '${assetName}' loaded and cached.`);
+        };
+        reader.readAsDataURL(file);
+    }
+
+    function setupAssetInputs() {
+        const assetInputs = document.getElementById('asset-inputs');
+        assetInputs.addEventListener('change', (e) => {
+            if (e.target.type === 'file') {
+                const assetName = e.target.dataset.asset;
+                handleAssetUpload(e.target.files[0], assetName);
+            }
+        });
+
+        // Make tool buttons trigger a click on the hidden file input
+        toolButtons.forEach(btn => {
+            const tool = btn.dataset.tool;
+            // The 'ground' button is for asset upload only, not for painting.
+            if (tool !== 'eraser' && tool !== 'player' && tool !== 'ground') {
+                const input = document.getElementById(`${tool}-asset-input`);
+                if (input) {
+                    btn.addEventListener('contextmenu', (e) => {
+                        e.preventDefault();
+                        input.click();
+                    });
+                }
+            }
+        });
+
+        // Special handler for the ground button to trigger file input on left-click
+        const groundBtn = document.querySelector('.tool-btn[data-tool="ground"]');
+        const groundInput = document.getElementById('ground-asset-input');
+        if (groundBtn && groundInput) {
+            groundBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                groundInput.click();
+            });
+        }
+        // Add a special listener for the player tool to also upload its asset
+        const playerBtn = document.querySelector('.tool-btn[data-tool="player"]');
+        const playerInput = document.getElementById('player-asset-input');
+        if(playerBtn && playerInput) {
+             playerBtn.addEventListener('contextmenu', (e) => {
+                e.preventDefault();
+                playerInput.click();
+            });
         }
     }
 
-    function handleKeyUp(e) {
-        input._keys.delete(e.code);
-        switch (e.code) {
-            case 'KeyA':
-            case 'ArrowLeft':
-                input.left = false;
-                break;
-            case 'KeyD':
-            case 'ArrowRight':
-                input.right = false;
-                break;
-            case 'Space':
-                input.jump = false;
-                break;
+    // --- World & Grid ---
+    function resizeGrid(newWidth, newHeight) {
+        const oldGrid = gameState.level.grid;
+        const oldHeight = gameState.level.height;
+
+        const newGrid = [];
+        for (let y = 0; y < newHeight; y++) {
+            const newRow = [];
+            for (let x = 0; x < newWidth; x++) {
+                if (y === newHeight - 1) {
+                    newRow.push('ground'); // Always ensure the last row is ground
+                } else if (y < oldHeight -1 && x < gameState.level.width) {
+                    newRow.push(oldGrid[y][x]); // Copy old data
+                } else {
+                    newRow.push(null); // Fill new space with empty tiles
+                }
+            }
+            newGrid.push(newRow);
+        }
+
+        gameState.level.grid = newGrid;
+        gameState.level.width = newWidth;
+        gameState.level.height = newHeight;
+    }
+
+    function initializeGrid() {
+        resizeGrid(gameState.level.width, gameState.level.height);
+    }
+
+
+    function resizeCanvas() {
+        // In EDIT mode, canvas can be larger than the container to allow scrolling
+        const newWidth = gameState.level.width * CONFIG.GRID_SIZE;
+        const newHeight = gameState.level.height * CONFIG.GRID_SIZE;
+
+        if (canvas.width !== newWidth || canvas.height !== newHeight) {
+            canvas.width = newWidth;
+            canvas.height = newHeight;
         }
     }
 
-    function isAABBCollision(rect1, rect2) {
+    function draw() {
+        // Clear canvas
+        ctx.fillStyle = '#111';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // Draw grid content
+        for (let y = 0; y < gameState.level.height; y++) {
+            for (let x = 0; x < gameState.level.width; x++) {
+                let tileType = gameState.level.grid[y][x];
+
+                // In PLAY mode, don't draw the finish tile unless it's activated
+                if (gameState.gameMode === 'PLAY' && tileType === 'finish' && !gameState.exit.activated) {
+                    continue;
+                }
+
+                if (tileType) {
+                    const img = assetImages[tileType];
+                    const posX = x * CONFIG.GRID_SIZE;
+                    const posY = y * CONFIG.GRID_SIZE;
+
+                    if (img && img.complete) {
+                        ctx.drawImage(img, posX, posY, CONFIG.GRID_SIZE, CONFIG.GRID_SIZE);
+                    } else {
+                        // Fallback to placeholder color
+                        ctx.fillStyle = TILE_COLORS[tileType] || 'grey';
+                        ctx.fillRect(posX, posY, CONFIG.GRID_SIZE, CONFIG.GRID_SIZE);
+                    }
+                }
+            }
+        }
+
+        if (gameState.gameMode === 'EDIT') {
+            drawEditorUI();
+        }
+
+        // Draw Player in PLAY mode
+        if (gameState.gameMode === 'PLAY') {
+            const p = gameState.player;
+            const img = assetImages['player'];
+
+            ctx.save();
+            if (!p.facingRight) {
+                ctx.scale(-1, 1);
+                ctx.translate(-p.x - CONFIG.PLAYER_WIDTH, p.y);
+            } else {
+                ctx.translate(p.x, p.y);
+            }
+
+            if (img && img.complete) {
+                ctx.drawImage(img, 0, 0, CONFIG.PLAYER_WIDTH, CONFIG.PLAYER_HEIGHT);
+            } else {
+                ctx.fillStyle = TILE_COLORS.player;
+                ctx.fillRect(0, 0, CONFIG.PLAYER_WIDTH, CONFIG.PLAYER_HEIGHT);
+            }
+            ctx.restore();
+        }
+
+        // Draw HUD
+        if (gameState.gameMode === 'PLAY') {
+            ctx.font = "30px Arial";
+            ctx.fillStyle = "white";
+            ctx.textAlign = "left";
+            const scoreText = `Coins: ${gameState.collectibles.collected} / ${gameState.collectibles.total}`;
+            ctx.fillText(scoreText, 20, 40);
+        }
+    }
+
+    function isColliding(obj, tileX, tileY) {
         return (
-            rect1.x < rect2.x + rect2.width &&
-            rect1.x + rect1.width > rect2.x &&
-            rect1.y < rect2.y + rect2.height &&
-            rect1.y + rect1.height > rect2.y
+            obj.x < tileX + CONFIG.GRID_SIZE &&
+            obj.x + CONFIG.PLAYER_WIDTH > tileX &&
+            obj.y < tileY + CONFIG.GRID_SIZE &&
+            obj.y + CONFIG.PLAYER_HEIGHT > tileY
         );
     }
 
-    // --- Player ---
-    const player = {
-        x: CONFIG.LOGICAL_WIDTH / 2 - CONFIG.PLAYER.WIDTH / 2,
-        y: CONFIG.LOGICAL_HEIGHT - CONFIG.PLAYER.HEIGHT - 100,
-        width: CONFIG.PLAYER.WIDTH,
-        height: CONFIG.PLAYER.HEIGHT,
-        vx: 0,
-        vy: 0,
-        speed: 350,
-        jumpForce: 800,
-        gravity: 2000,
-        isGrounded: false,
-        jumpsLeft: 2,
-        direction: 1, // 1 for right, -1 for left
-    };
+    function checkCollisionsY() {
+        const p = gameState.player;
+        let onGround = false;
 
-    // --- Editor State ---
-    const editorState = {
-        activeTab: 'level',
-        changesMade: false,
-        activeTool: null, // e.g., { type: 'platform' }
-        isPainting: false,
-        mousePos: { x: 0, y: 0 },
-    };
-    let gameMode = 'PLAY'; // 'PLAY' or 'EDIT'
+        const startCol = Math.floor(p.x / CONFIG.GRID_SIZE);
+        const endCol = Math.floor((p.x + CONFIG.PLAYER_WIDTH) / CONFIG.GRID_SIZE);
+        const startRow = Math.floor(p.y / CONFIG.GRID_SIZE);
+        const endRow = Math.floor((p.y + CONFIG.PLAYER_HEIGHT) / CONFIG.GRID_SIZE);
 
-    // --- DOM Elements ---
-    const uiContainer = document.getElementById('ui-container');
-    const editorContainer = document.getElementById('editor-container');
-    const editButton = document.getElementById('edit-button');
-    const playButton = document.getElementById('play-button');
-    const tabButtons = document.querySelectorAll('.tab-button');
-    const tabPanes = document.querySelectorAll('.tab-pane');
-    const levelDesignerToolbar = document.getElementById('level-designer-toolbar');
-    const toolsContainer = document.getElementById('tools-container');
-    const saveButton = document.getElementById('save-button');
-    const loadButton = document.getElementById('load-button');
-    const loadInput = document.getElementById('load-input');
-    const mobileControls = document.getElementById('mobile-controls');
-    const mobileLeft = document.getElementById('mobile-left');
-    const mobileRight = document.getElementById('mobile-right');
-    const mobileJump = document.getElementById('mobile-jump');
+        for (let row = startRow; row <= endRow; row++) {
+            for (let col = startCol; col <= endCol; col++) {
+                 if (row < 0 || row >= gameState.level.height || col < 0 || col >= gameState.level.width) continue;
 
+                 const tile = gameState.level.grid[row][col];
+                 const tileX = col * CONFIG.GRID_SIZE;
+                 const tileY = row * CONFIG.GRID_SIZE;
 
-    // --- Assets ---
-    const assets = {
-        player: {
-            idle: null, // base64 string
-            jump: null, // base64 string
-        },
-        platforms: [],
-        enemies: [],
-        collectables: [],
-        exit: null,
-    };
-
-
-    // --- Game State & Entities ---
-    const gameState = {
-        score: 0,
-        totalCollectables: 0,
-        exitActivated: false,
-        gameWon: false,
-    };
-
-    let collectables = [];
-    let enemies = [];
-    let exit = null;
-    let playerSpawn = { x: 0, y: 0 };
-
-    // --- Level ---
-    const level = {
-        // 0: Empty, 1: Platform, C: Collectable, E: Enemy, X: Exit, P: Player
-        data: [
-            [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
-            [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
-            [0,0,0,0,'P',0,0,0,0,0,0,0,'C',0,0,0],
-            [1,1,1,1,1,0,0,0,0,1,1,1,1,1,1,0],
-            [0,0,0,0,0,0,'C',0,0,0,0,0,0,0,0,0],
-            [0,0,0,0,0,1,1,1,1,1,0,0,0,'E',0,0],
-            [0,'C',0,0,0,0,0,0,0,0,0,1,1,1,1,1],
-            [1,1,1,0,0,0,'E',0,0,0,'C',0,0,0,0,0],
-            [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
-        ],
-    };
-
-    function parseLevel() {
-        const platformBoxes = [];
-        collectables = [];
-        enemies = [];
-        exit = null;
-        gameState.totalCollectables = 0;
-
-        for (let r = 0; r < level.data.length; r++) {
-            for (let c = 0; c < level.data[r].length; c++) {
-                const tile = level.data[r][c];
-                const pos = { x: c * CONFIG.GRID_SIZE, y: r * CONFIG.GRID_SIZE };
-
-                if (tile === 1) {
-                    platformBoxes.push({ ...pos, width: CONFIG.GRID_SIZE, height: CONFIG.GRID_SIZE });
-                } else if (tile === 'C') {
-                    collectables.push({ ...pos, width: CONFIG.GRID_SIZE, height: CONFIG.GRID_SIZE, collected: false });
-                    gameState.totalCollectables++;
-                } else if (tile === 'E') {
-                    enemies.push({ ...pos, width: CONFIG.GRID_SIZE, height: CONFIG.GRID_SIZE });
-                } else if (tile === 'X') {
-                    exit = { ...pos, width: CONFIG.GRID_SIZE, height: CONFIG.GRID_SIZE };
-                } else if (tile === 'P') {
-                    playerSpawn = { x: pos.x, y: pos.y };
-                }
+                 if (tile && isColliding(p, tileX, tileY)) {
+                     if (tile === 'platform' || tile === 'ground') {
+                         if (p.vy > 0) {
+                             p.y = tileY - CONFIG.PLAYER_HEIGHT;
+                             onGround = true;
+                         } else if (p.vy < 0) {
+                             p.y = tileY + CONFIG.GRID_SIZE;
+                         }
+                         p.vy = 0;
+                     } else if (tile === 'coin') {
+                        gameState.level.grid[row][col] = null;
+                        gameState.collectibles.collected++;
+                        if (gameState.collectibles.collected === gameState.collectibles.total) {
+                            gameState.exit.activated = true;
+                        }
+                     } else if (tile === 'spike') {
+                        document.getElementById('play-btn').click(); // Reset level
+                     } else if (tile === 'finish' && gameState.exit.activated) {
+                        alert("YOU WIN!");
+                        gameState.gameMode = 'EDIT';
+                     }
+                 }
             }
         }
-        return platformBoxes;
-    }
-
-    let platformAABBs = [];
-
-    function isTouchDevice() {
-        return 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-    }
-
-    function setGameMode(mode) {
-        gameMode = mode;
-        if (mode === 'PLAY') {
-            if (isTouchDevice()) {
-                mobileControls.classList.remove('hidden');
-            }
-            editorContainer.classList.add('hidden');
-            editButton.classList.remove('hidden');
-            playButton.classList.add('hidden');
-
-            // Restart level if changes were made in editor
-            if (editorState.changesMade) {
-                resetLevel();
-                editorState.changesMade = false;
-            }
-            // Unpause game logic if we add pausing later
-        } else { // 'EDIT'
-            mobileControls.classList.add('hidden');
-            editorContainer.classList.remove('hidden');
-            editButton.classList.add('hidden');
-            playButton.classList.remove('hidden');
-            // Pause game logic if we add pausing later
+        if (onGround) {
+            p.jumps = 2;
         }
     }
 
-    function setActiveTab(tabId) {
-        editorState.activeTab = tabId;
-        tabButtons.forEach(btn => {
-            btn.classList.toggle('active', btn.dataset.tab === tabId);
-        });
-        tabPanes.forEach(pane => {
-            pane.classList.toggle('hidden', pane.id !== `${tabId}-tab-content`);
-        });
-        levelDesignerToolbar.classList.toggle('hidden', tabId !== 'level');
-    }
+    function checkCollisionsX() {
+        const p = gameState.player;
+        const startCol = Math.floor(p.x / CONFIG.GRID_SIZE);
+        const endCol = Math.floor((p.x + CONFIG.PLAYER_WIDTH) / CONFIG.GRID_SIZE);
+        const startRow = Math.floor(p.y / CONFIG.GRID_SIZE);
+        const endRow = Math.floor((p.y + CONFIG.PLAYER_HEIGHT) / CONFIG.GRID_SIZE);
 
-    // --- Level Designer Logic ---
-    function getMousePosOnCanvas(e) {
-        const rect = canvas.getBoundingClientRect();
-        const scaleX = canvas.width / rect.width;
-        const scaleY = canvas.height / rect.height;
-        return {
-            x: (e.clientX - rect.left) * scaleX,
-            y: (e.clientY - rect.top) * scaleY
-        };
-    }
+        for (let row = startRow; row <= endRow; row++) {
+            for (let col = startCol; col <= endCol; col++) {
+                 if (row < 0 || row >= gameState.level.height || col < 0 || col >= gameState.level.width) continue;
 
-    function placeTile(gridX, gridY) {
-        if (!editorState.activeTool || gridY < 0 || gridY >= level.data.length || gridX < 0 || gridX >= level.data[0].length) {
-            return;
-        }
+                 const tile = gameState.level.grid[row][col];
+                 const tileX = col * CONFIG.GRID_SIZE;
+                 const tileY = row * CONFIG.GRID_SIZE;
 
-        let tileId = 0;
-        const { type } = editorState.activeTool;
-
-        if (type === 'platform') tileId = 1;
-        else if (type === 'collectable') tileId = 'C';
-        else if (type === 'enemy') tileId = 'E';
-        else if (type === 'exit') tileId = 'X';
-        else if (type === 'player') tileId = 'P';
-        else if (type === 'eraser') tileId = 0;
-
-        // Prevent placing multiple unique items
-        if (tileId === 'P' || tileId === 'X') {
-            for(let r=0; r<level.data.length; r++) {
-                for(let c=0; c<level.data[r].length; c++) {
-                    if (level.data[r][c] === tileId) level.data[r][c] = 0;
-                }
+                 if ((tile === 'platform' || tile === 'ground') && isColliding(p, tileX, tileY)) {
+                     if (p.vx > 0) {
+                         p.x = tileX - CONFIG.PLAYER_WIDTH;
+                     } else if (p.vx < 0) {
+                         p.x = tileX + CONFIG.GRID_SIZE;
+                     }
+                     p.vx = 0;
+                 }
             }
         }
+    }
 
-        if (level.data[gridY][gridX] !== tileId) {
-            level.data[gridY][gridX] = tileId;
-            editorState.changesMade = true;
-            resetLevel(); // Refresh level data representation
+
+    function update() {
+        if (gameState.gameMode !== 'PLAY') return;
+
+        const p = gameState.player;
+
+        // --- Horizontal Movement ---
+        p.vx = 0;
+        if (keys.left) {
+            p.vx = -CONFIG.MOVE_SPEED;
+            p.facingRight = false;
+        }
+        if (keys.right) {
+            p.vx = CONFIG.MOVE_SPEED;
+            p.facingRight = true;
+        }
+        p.x += p.vx;
+        checkCollisionsX();
+
+
+        // --- Vertical Movement & Gravity ---
+        p.vy += CONFIG.GRAVITY;
+        p.y += p.vy;
+        checkCollisionsY();
+
+
+        // --- Jumping ---
+        if (keys.jump && p.jumps > 0) {
+            p.vy = -CONFIG.JUMP_FORCE;
+            p.jumps--;
+            keys.jump = false; // Prevent holding jump
         }
     }
 
-    function handleCanvasMouseDown(e) {
-        if (gameMode !== 'EDIT' || editorState.activeTab !== 'level') return;
-        editorState.isPainting = true;
-        const pos = getMousePosOnCanvas(e);
-        const gridX = Math.floor((pos.x + camera.x) / CONFIG.GRID_SIZE);
-        const gridY = Math.floor((pos.y + camera.y) / CONFIG.GRID_SIZE);
-        placeTile(gridX, gridY);
+    function gameLoop() {
+        update();
+        resizeCanvas();
+        draw();
+        requestAnimationFrame(gameLoop);
     }
 
-    function handleCanvasMouseMove(e) {
-        const pos = getMousePosOnCanvas(e);
-        editorState.mousePos.x = pos.x + camera.x;
-        editorState.mousePos.y = pos.y + camera.y;
-        if (gameMode !== 'EDIT' || !editorState.isPainting || editorState.activeTab !== 'level') return;
-        const gridX = Math.floor(editorState.mousePos.x / CONFIG.GRID_SIZE);
-        const gridY = Math.floor(editorState.mousePos.y / CONFIG.GRID_SIZE);
-        placeTile(gridX, gridY);
+    // --- Editor-specific Drawing ---
+    function drawEditorUI() {
+        // Draw grid lines
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+        ctx.lineWidth = 1;
+        for (let x = 0; x < gameState.level.width * CONFIG.GRID_SIZE; x += CONFIG.GRID_SIZE) {
+            ctx.beginPath();
+            ctx.moveTo(x, 0);
+            ctx.lineTo(x, gameState.level.height * CONFIG.GRID_SIZE);
+            ctx.stroke();
+        }
+        for (let y = 0; y < gameState.level.height * CONFIG.GRID_SIZE; y += CONFIG.GRID_SIZE) {
+            ctx.beginPath();
+            ctx.moveTo(0, y);
+            ctx.lineTo(gameState.level.width * CONFIG.GRID_SIZE, y);
+            ctx.stroke();
+        }
     }
 
-    function handleCanvasMouseUp(e) {
-        editorState.isPainting = false;
-    }
-
-    function updateToolbar() {
-        // This will be expanded later to show sprite previews
-        // For now, it just adds listeners to the static buttons
-        const toolButtons = document.querySelectorAll('.tool-button');
-        toolButtons.forEach(btn => {
-            btn.addEventListener('click', () => {
-                 toolButtons.forEach(b => b.classList.remove('active'));
-                 btn.classList.add('active');
-                 editorState.activeTool = JSON.parse(btn.dataset.tool);
-            });
-        });
-    }
-
-    // --- Asset Handling ---
-
-    // --- Save/Load Logic ---
-    function saveGame() {
+    // --- Save/Load Functionality ---
+    function saveLevel() {
         const data = {
-            level: level.data,
-            assets: assets,
-            // We could add config here too if needed
+            level: gameState.level,
+            assets: gameState.assets,
         };
-        const json = JSON.stringify(data, null, 2);
+
+        const json = JSON.stringify(data);
         const blob = new Blob([json], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
+
         const a = document.createElement('a');
         a.href = url;
         a.download = 'jumpina-level.json';
+        document.body.appendChild(a);
         a.click();
+        document.body.removeChild(a);
         URL.revokeObjectURL(url);
+        console.log("Level saved.");
     }
 
-    function loadGame(e) {
+    function loadLevel(e) {
         const file = e.target.files[0];
         if (!file) return;
-
-        if (!confirm('Loading this file will overwrite your current level and assets. Are you sure?')) {
-            return;
-        }
 
         const reader = new FileReader();
         reader.onload = (event) => {
             try {
                 const data = JSON.parse(event.target.result);
+                // Validate data structure
                 if (data.level && data.assets) {
-                    level.data = data.level;
-                    // It's important to re-assign, not just merge
-                    Object.assign(assets, data.assets);
+                    // Overwrite game state
+                    gameState.level = data.level;
+                    gameState.assets = data.assets;
 
-                    // Refresh UI previews
-                    playerIdlePreview.src = assets.player.idle || '';
-                    playerJumpPreview.src = assets.player.jump || '';
-                    // We'd need to update other previews here too if they existed
+                    // Update size labels
+                    document.getElementById('width-label').textContent = gameState.level.width;
+                    document.getElementById('height-label').textContent = gameState.level.height;
 
-                    resetLevel();
-                    alert('Level loaded successfully!');
+
+                    // Rebuild asset images cache
+                    Object.keys(assetImages).forEach(key => delete assetImages[key]); // Clear cache
+                    Object.keys(gameState.assets).forEach(assetName => {
+                        const base64 = gameState.assets[assetName];
+                        if (base64) {
+                             const img = new Image();
+                             img.src = base64;
+                             assetImages[assetName] = img;
+                        }
+                    });
+
+                    console.log("Level loaded and assets are being rebuilt.");
                 } else {
-                    alert('Invalid level file.');
+                    alert("Invalid level file format.");
                 }
             } catch (error) {
-                alert('Error loading or parsing file.');
-                console.error(error);
+                alert("Error reading level file: " + error.message);
             }
         };
         reader.readAsText(file);
-        // Reset file input so the same file can be loaded again
+
+        // Reset input value to allow loading the same file again
         e.target.value = '';
     }
 
-    function handleImageUpload(file, targetWidth, targetHeight, isSquare, callback) {
-        if (!file) return;
 
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            const img = new Image();
-            img.onload = () => {
-                const tempCanvas = document.createElement('canvas');
-                const tempCtx = tempCanvas.getContext('2d');
+    // --- Editor Functionality ---
+    let isPainting = false;
 
-                let sx = 0, sy = 0, sWidth = img.width, sHeight = img.height;
-
-                if (isSquare) {
-                    // Center crop for square sprites
-                    const size = Math.min(img.width, img.height);
-                    sx = (img.width - size) / 2;
-                    sy = (img.height - size) / 2;
-                    sWidth = size;
-                    sHeight = size;
-                } else {
-                    // For player, we resize based on height, preserving aspect ratio
-                    const aspectRatio = img.width / img.height;
-                    targetWidth = targetHeight * aspectRatio;
-                }
-
-                tempCanvas.width = targetWidth;
-                tempCanvas.height = targetHeight;
-
-                tempCtx.drawImage(img, sx, sy, sWidth, sHeight, 0, 0, targetWidth, targetHeight);
-
-                const base64 = tempCanvas.toDataURL('image/png');
-                callback(base64);
-                editorState.changesMade = true;
-            };
-            img.src = e.target.result;
+    function getMouseGridPos(e) {
+        const rect = canvas.getBoundingClientRect();
+        // Adjust for canvas position relative to scrolled container
+        const x = e.clientX - rect.left + canvasContainer.scrollLeft;
+        const y = e.clientY - rect.top + canvasContainer.scrollTop;
+        return {
+            x: Math.floor(x / CONFIG.GRID_SIZE),
+            y: Math.floor(y / CONFIG.GRID_SIZE),
         };
-        reader.readAsDataURL(file);
+    }
+
+    function handleCanvasPaint(e) {
+        if (!isPainting) return;
+        const pos = getMouseGridPos(e);
+        const { x, y } = pos;
+
+        if (y >= 0 && y < gameState.level.height - 1 && x >= 0 && x < gameState.level.width) {
+            const tool = gameState.activeTool;
+            // Place player start point (unique)
+            if (tool === 'player' || tool === 'finish') {
+                // Remove previous instance of player or finish
+                gameState.level.grid.forEach(row => {
+                    const i = row.indexOf(tool);
+                    if (i !== -1) row[i] = null;
+                });
+            }
+             gameState.level.grid[y][x] = tool === 'eraser' ? null : tool;
+        }
     }
 
 
-    function resetLevel() {
-        platformAABBs = parseLevel();
-        player.x = playerSpawn.x;
-        player.y = playerSpawn.y;
-        player.vx = 0;
-        player.vy = 0;
-        gameState.score = 0;
-        gameState.exitActivated = false;
-        gameState.gameWon = false;
-        collectables.forEach(c => c.collected = false);
-    }
+    // --- Initialization ---
+    function init() {
+        console.log("Jumpina Editor Initialized");
+        initializeGrid();
+        setupAssetInputs();
+        setupInputListeners();
+
+        // Level resize buttons
+        const widthPlusBtn = document.getElementById('width-plus');
+        const widthMinusBtn = document.getElementById('width-minus');
+        const heightPlusBtn = document.getElementById('height-plus');
+        const heightMinusBtn = document.getElementById('height-minus');
+
+        widthPlusBtn.addEventListener('click', () => {
+            const newWidth = gameState.level.width + 1;
+            document.getElementById('width-label').textContent = newWidth;
+            resizeGrid(newWidth, gameState.level.height);
+        });
+
+        widthMinusBtn.addEventListener('click', () => {
+            if (gameState.level.width > 16) { // Minimum width
+                const newWidth = gameState.level.width - 1;
+                document.getElementById('width-label').textContent = newWidth;
+                resizeGrid(newWidth, gameState.level.height);
+            }
+        });
+
+        heightPlusBtn.addEventListener('click', () => {
+            const newHeight = gameState.level.height + 1;
+            document.getElementById('height-label').textContent = newHeight;
+            resizeGrid(gameState.level.width, newHeight);
+        });
+
+        heightMinusBtn.addEventListener('click', () => {
+            if (gameState.level.height > 9) { // Minimum height
+                const newHeight = gameState.level.height - 1;
+                document.getElementById('height-label').textContent = newHeight;
+                resizeGrid(gameState.level.width, newHeight);
+            }
+        });
+
+        // Save/Load buttons
+        const saveBtn = document.getElementById('save-btn');
+        const loadBtn = document.getElementById('load-btn');
+        const loadLevelInput = document.getElementById('load-level-input');
+
+        saveBtn.addEventListener('click', saveLevel);
+        loadBtn.addEventListener('click', () => loadLevelInput.click());
+        loadLevelInput.addEventListener('change', loadLevel);
 
 
-    // --- Game Loop ---
-    let lastTime = 0;
+        // Toolbar logic
+        toolButtons.forEach(btn => {
+            btn.addEventListener('click', () => {
+                toolButtons.forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                gameState.activeTool = btn.dataset.tool;
+            });
+        });
+        // Set default active tool
+        const platformBtn = document.querySelector('.tool-btn[data-tool="platform"]');
+        if(platformBtn) platformBtn.classList.add('active');
 
-    function update(deltaTime) {
-        if (gameMode !== 'PLAY') return; // Don't update game logic in EDIT mode
-        if (gameState.gameWon) return;
+        // Mode switching
+        const playBtn = document.getElementById('play-btn');
+        const editBtn = document.getElementById('edit-btn');
 
-        // Horizontal Movement
-        player.vx = 0;
-        if (input.left) {
-            player.vx = -player.speed;
-            player.direction = -1;
-        }
-        if (input.right) {
-            player.vx = player.speed;
-            player.direction = 1;
-        }
-        const potentialX = player.x + player.vx * deltaTime;
-        player.x = potentialX;
+        playBtn.addEventListener('click', () => {
+            // --- Initialize Game State for PLAY mode ---
+            gameState.collectibles.total = 0;
+            gameState.collectibles.collected = 0;
+            gameState.exit.activated = false;
+            let playerStart = { x: 100, y: 100 };
 
-        platformAABBs.forEach(box => {
-            if (isAABBCollision(player, box)) {
-                if (player.vx > 0) { // Moving right
-                    player.x = box.x - player.width;
-                } else if (player.vx < 0) { // Moving left
-                    player.x = box.x + box.width;
+            for (let y = 0; y < gameState.level.height; y++) {
+                for (let x = 0; x < gameState.level.width; x++) {
+                    const tile = gameState.level.grid[y][x];
+                    if (tile === 'player') {
+                        playerStart.x = x * CONFIG.GRID_SIZE;
+                        playerStart.y = y * CONFIG.GRID_SIZE;
+                    } else if (tile === 'coin') {
+                        gameState.collectibles.total++;
+                    } else if (tile === 'finish') {
+                        gameState.exit.x = x;
+                        gameState.exit.y = y;
+                    }
                 }
             }
+
+            // Reset player state
+            gameState.player.x = playerStart.x;
+            gameState.player.y = playerStart.y;
+            gameState.player.vx = 0;
+            gameState.player.vy = 0;
+            gameState.player.jumps = 2;
+
+            gameState.gameMode = 'PLAY';
+            playBtn.classList.add('active');
+            editBtn.classList.remove('active');
+            canvasContainer.style.overflow = 'hidden'; // Hide scrollbars in play mode
+        });
+        editBtn.addEventListener('click', () => {
+            gameState.gameMode = 'EDIT';
+            editBtn.classList.add('active');
+            playBtn.classList.remove('active');
+            canvasContainer.style.overflow = 'auto'; // Show scrollbars in edit mode
         });
 
-        // Vertical Movement & Collision
-        player.vy += player.gravity * deltaTime;
-        const potentialY = player.y + player.vy * deltaTime;
-        player.y = potentialY;
-
-        player.isGrounded = false;
-        platformAABBs.forEach(box => {
-            if (isAABBCollision(player, box)) {
-                if (player.vy > 0) { // Moving down
-                    player.y = box.y - player.height;
-                    player.vy = 0;
-                    player.isGrounded = true;
-                    player.jumpsLeft = 2;
-                } else if (player.vy < 0) { // Moving up
-                    player.y = box.y + box.height;
-                    player.vy = 0;
-                }
+        // Canvas painting listeners
+        canvas.addEventListener('mousedown', (e) => {
+            if (gameState.gameMode === 'EDIT') {
+                isPainting = true;
+                handleCanvasPaint(e);
             }
         });
-
-        // Entity Collisions
-        // Collectables
-        collectables.forEach(c => {
-            if (!c.collected && isAABBCollision(player, c)) {
-                c.collected = true;
-                gameState.score++;
-                if (gameState.score === gameState.totalCollectables) {
-                    gameState.exitActivated = true;
-                    // Simple visual effect: flash background
-                    document.body.style.transition = 'background-color 0.1s';
-                    document.body.style.backgroundColor = '#fff';
-                    setTimeout(() => document.body.style.backgroundColor = '#333', 100);
-                }
+        canvas.addEventListener('mousemove', (e) => {
+            if (isPainting && gameState.gameMode === 'EDIT') {
+                handleCanvasPaint(e);
             }
         });
+        canvas.addEventListener('mouseup', () => { isPainting = false; });
+        canvas.addEventListener('mouseleave', () => { isPainting = false; });
 
-        // Enemies
-        enemies.forEach(e => {
-            if (isAABBCollision(player, e)) {
-                resetLevel();
-            }
-        });
-
-        // Exit
-        if (gameState.exitActivated && exit && isAABBCollision(player, exit)) {
-            gameState.gameWon = true;
-        }
-
-        // --- Camera Follow Logic ---
-        const cameraCenterX = camera.x + CONFIG.LOGICAL_WIDTH / 2;
-        const cameraCenterY = camera.y + CONFIG.LOGICAL_HEIGHT / 2;
-        const playerCenterX = player.x + player.width / 2;
-        const playerCenterY = player.y + player.height / 2;
-
-        const dx = playerCenterX - cameraCenterX;
-        const dy = playerCenterY - cameraCenterY;
-
-        let targetX = camera.x;
-        let targetY = camera.y;
-
-        if (Math.abs(dx) > CONFIG.CAMERA_DEADZONE_X / 2) {
-            targetX += dx - Math.sign(dx) * CONFIG.CAMERA_DEADZONE_X / 2;
-        }
-        if (Math.abs(dy) > CONFIG.CAMERA_DEADZONE_Y / 2) {
-            targetY += dy - Math.sign(dy) * CONFIG.CAMERA_DEADZONE_Y / 2;
-        }
-
-        // Lerp camera to target
-        camera.x += (targetX - camera.x) * CONFIG.CAMERA_LERP_FACTOR;
-        camera.y += (targetY - camera.y) * CONFIG.CAMERA_LERP_FACTOR;
-
-
-        // Jumping
-        if (input.jump) {
-            if (player.jumpsLeft > 0) {
-                player.vy = -player.jumpForce;
-                player.jumpsLeft--;
-                player.isGrounded = false;
-            }
-            input.jump = false; // Consume jump input
-        }
-    }
-
-    function draw() {
-        // Clear the canvas with a static background color
-        ctx.fillStyle = '#2c2c2c';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-        // Apply camera transform
-        ctx.save();
-        ctx.translate(-camera.x, -camera.y);
-
-        // --- All world drawing goes here ---
-
-        // Draw Level Platforms
-        ctx.fillStyle = 'brown';
-        platformAABBs.forEach(box => {
-            ctx.fillRect(box.x, box.y, box.width, box.height);
-        });
-
-        // Draw Entities
-        ctx.fillStyle = 'yellow'; // Collectables
-        collectables.forEach(c => {
-            if (!c.collected) {
-                ctx.fillRect(c.x, c.y, c.width, c.height);
-            }
-        });
-
-        ctx.fillStyle = 'red'; // Enemies
-        enemies.forEach(e => {
-            ctx.fillRect(e.x, e.y, e.width, e.height);
-        });
-
-        if (gameState.exitActivated && exit) {
-            ctx.fillStyle = 'purple'; // Exit
-            ctx.fillRect(exit.x, exit.y, exit.width, exit.height);
-        }
-
-        // Draw Player
-        ctx.save();
-        ctx.translate(player.x, player.y);
-        if (player.direction === -1) {
-            ctx.scale(-1, 1);
-            ctx.translate(-player.width, 0);
-        }
-
-        const playerSprite = (player.isGrounded ? assets.player.idle : assets.player.jump) || null;
-        if (playerSprite) {
-            const img = new Image();
-            img.src = playerSprite;
-            // Ensure image is loaded before drawing, in a real game you'd preload
-            if (img.complete) {
-                 ctx.drawImage(img, 0, 0, player.width, player.height);
-            } else {
-                 img.onload = () => ctx.drawImage(img, 0, 0, player.width, player.height);
-            }
-        } else {
-            // Fallback placeholder
-            ctx.fillStyle = 'green';
-            ctx.fillRect(0, 0, player.width, player.height);
-        }
-        ctx.restore();
-
-
-        // Draw editor grid and cursor
-        if (gameMode === 'EDIT') {
-            // Draw grid
-            ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
-            const gridWidth = level.data[0].length * CONFIG.GRID_SIZE;
-            const gridHeight = level.data.length * CONFIG.GRID_SIZE;
-            for (let x = 0; x <= gridWidth; x += CONFIG.GRID_SIZE) {
-                ctx.beginPath();
-                ctx.moveTo(x, 0);
-                ctx.lineTo(x, gridHeight);
-                ctx.stroke();
-            }
-            for (let y = 0; y <= gridHeight; y += CONFIG.GRID_SIZE) {
-                ctx.beginPath();
-                ctx.moveTo(0, y);
-                ctx.lineTo(gridWidth, y);
-                ctx.stroke();
-            }
-
-            // Draw cursor preview
-            if (editorState.activeTool) {
-                const gridX = Math.floor(editorState.mousePos.x / CONFIG.GRID_SIZE);
-                const gridY = Math.floor(editorState.mousePos.y / CONFIG.GRID_SIZE);
-                ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
-                ctx.fillRect(gridX * CONFIG.GRID_SIZE, gridY * CONFIG.GRID_SIZE, CONFIG.GRID_SIZE, CONFIG.GRID_SIZE);
-            }
-        }
-
-
-        // --- End of world drawing ---
-        ctx.restore(); // Restore context to pre-camera state
-
-        // Draw HUD (which should not move with the camera)
-        ctx.fillStyle = 'white';
-        ctx.font = '30px Arial';
-        ctx.textAlign = 'left';
-        ctx.fillText(`Collected: ${gameState.score} / ${gameState.totalCollectables}`, 20, 40);
-
-        if (gameState.gameWon) {
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-            ctx.fillStyle = 'white';
-            ctx.font = '80px Arial';
-            ctx.textAlign = 'center';
-            ctx.fillText('YOU WIN', canvas.width / 2, canvas.height / 2);
-        }
-    }
-
-    function gameLoop(timestamp) {
-        const deltaTime = (timestamp - lastTime) / 1000;
-        lastTime = timestamp;
-
-        update(deltaTime);
-        draw();
 
         requestAnimationFrame(gameLoop);
     }
 
-    // --- Event Listeners ---
-    editButton.addEventListener('click', () => setGameMode('EDIT'));
-    playButton.addEventListener('click', () => setGameMode('PLAY'));
-    saveButton.addEventListener('click', saveGame);
-    loadButton.addEventListener('click', () => loadInput.click());
-    loadInput.addEventListener('change', loadGame);
-
-    // Mobile controls
-    mobileLeft.addEventListener('touchstart', (e) => { e.preventDefault(); input.left = true; });
-    mobileLeft.addEventListener('touchend', (e) => { e.preventDefault(); input.left = false; });
-    mobileRight.addEventListener('touchstart', (e) => { e.preventDefault(); input.right = true; });
-    mobileRight.addEventListener('touchend', (e) => { e.preventDefault(); input.right = false; });
-    mobileJump.addEventListener('touchstart', (e) => { e.preventDefault(); input.jump = true; });
-    mobileJump.addEventListener('touchend', (e) => { e.preventDefault(); input.jump = false; }); // jump is consumed, so this is fine
-
-    tabButtons.forEach(btn => {
-        btn.addEventListener('click', () => setActiveTab(btn.dataset.tab));
-    });
-
-    // Player tab listeners
-    const playerIdleInput = document.getElementById('player-idle-input');
-    const playerIdlePreview = document.getElementById('player-idle-preview');
-    playerIdleInput.addEventListener('change', (e) => {
-        handleImageUpload(e.target.files[0], CONFIG.PLAYER.WIDTH, CONFIG.PLAYER.HEIGHT, false, (base64) => {
-            assets.player.idle = base64;
-            playerIdlePreview.src = base64;
-        });
-    });
-
-    const playerJumpInput = document.getElementById('player-jump-input');
-    const playerJumpPreview = document.getElementById('player-jump-preview');
-    playerJumpInput.addEventListener('change', (e) => {
-        handleImageUpload(e.target.files[0], CONFIG.PLAYER.WIDTH, CONFIG.PLAYER.HEIGHT, false, (base64) => {
-            assets.player.jump = base64;
-            playerJumpPreview.src = base64;
-        });
-    });
-
-
-    // --- Initialization ---
-    canvas.addEventListener('mousedown', handleCanvasMouseDown);
-    canvas.addEventListener('mousemove', handleCanvasMouseMove);
-    canvas.addEventListener('mouseup', handleCanvasMouseUp);
-    canvas.addEventListener('mouseleave', () => editorState.isPainting = false); // Stop painting if mouse leaves canvas
-
-    window.addEventListener('resize', resize);
-    window.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('keyup', handleKeyUp);
-    resize(); // Initial resize
-    resetLevel(); // <--- Initialize the first level
-    updateToolbar();
-    requestAnimationFrame(gameLoop);
+    init();
 });

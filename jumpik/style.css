@@ -1,0 +1,83 @@
+body {
+    margin: 0;
+    overflow: hidden;
+    background-color: #f0f0f0; /* Paper-ish fallback */
+    font-family: 'Permanent Marker', cursive;
+    touch-action: none; /* Prevent zooming/scrolling on mobile */
+}
+
+#game-container {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background: #333;
+}
+
+canvas {
+    background-color: #fff;
+    box-shadow: 0 0 20px rgba(0,0,0,0.5);
+    /* We will fit this to the screen via JS */
+}
+
+#ui-layer {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none; /* Let clicks pass through to canvas if needed, but we intercept buttons */
+}
+
+#controls {
+    position: absolute;
+    bottom: 20px;
+    width: 100%;
+    height: 100px;
+    display: flex;
+    justify-content: space-between;
+    padding: 0 20px;
+    box-sizing: border-box;
+    pointer-events: auto; /* Enable clicks on buttons */
+}
+
+.touch-btn {
+    background: rgba(0, 0, 0, 0.2);
+    border: 2px solid #000;
+    border-radius: 50%;
+    width: 80px;
+    height: 80px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 24px;
+    user-select: none;
+    cursor: pointer;
+    color: #000;
+}
+
+.touch-btn:active {
+    background: rgba(0, 0, 0, 0.5);
+    transform: scale(0.95);
+}
+
+#btn-jump {
+    border-radius: 20px;
+    width: 100px;
+}
+
+#score {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    font-size: 24px;
+    color: #000;
+}
+
+/* Hide touch controls on desktop if desired, but for now keeping them visible for hybrid testing */
+@media (min-width: 1024px) {
+    /* Optional: hide controls on large screens */
+    /* #controls { display: none; } */
+}

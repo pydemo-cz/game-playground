@@ -1,76 +1,68 @@
-:root {
-    --aspect-ratio: 16/9;
-}
-
 body, html {
     margin: 0;
     padding: 0;
     width: 100%;
     height: 100%;
-    background-color: #1a1a1a;
     display: flex;
     justify-content: center;
     align-items: center;
-    font-family: Arial, sans-serif;
+    background-color: #282c34;
+    font-family: sans-serif;
 }
 
 #app-wrapper {
-    width: 90vw;
-    max-width: calc(90vh * var(--aspect-ratio));
-    aspect-ratio: var(--aspect-ratio);
-    background-color: #2a2a2a;
+    width: 100%;
+    max-width: 1280px;
+    aspect-ratio: 16 / 9;
+    background-color: #20232a;
     display: flex;
     flex-direction: column;
     box-shadow: 0 0 20px rgba(0,0,0,0.5);
 }
 
 #toolbar {
-    padding: 5px;
-    background-color: #333;
-    color: white;
-    flex-shrink: 0;
+    width: 100%;
+    background-color: #3c4049;
+    padding: 8px;
+    box-sizing: border-box;
     display: flex;
     align-items: center;
-    gap: 15px;
+    gap: 16px;
+    flex-wrap: wrap;
 }
 
 .toolbar-section {
     display: flex;
-    gap: 5px;
+    align-items: center;
+    gap: 8px;
 }
 
 #toolbar button {
-    background-color: #555;
-    color: white;
-    border: 1px solid #777;
     padding: 8px 12px;
+    background-color: #61dafb;
+    border: none;
     border-radius: 4px;
+    color: #20232a;
     cursor: pointer;
+    font-weight: bold;
     transition: background-color 0.2s;
 }
 
-#toolbar button:hover {
-    background-color: #666;
+#toolbar button.active, #toolbar button:hover {
+    background-color: #4caf50;
+    color: white;
 }
 
-#toolbar button.active {
-    background-color: #0d6efd;
-    border-color: #0d6efd;
+#toolbar span {
+    color: white;
 }
-
 
 #canvas-container {
     flex-grow: 1;
-    position: relative;
-    overflow: auto; /* This will enable scrollbars */
+    overflow: auto;
+    background-color: #000;
 }
 
 canvas {
-    position: absolute;
-    top: 0;
-    left: 0;
-    background-color: #000;
-    image-rendering: pixelated;
-    image-rendering: -moz-crisp-edges;
-    image-rendering: crisp-edges;
+    display: block;
 }

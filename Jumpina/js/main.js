@@ -180,8 +180,9 @@ document.addEventListener('DOMContentLoaded', () => {
             for (let x = 0; x < newWidth; x++) {
                 if (y === newHeight - 1) {
                     newRow.push('ground'); // Always ensure the last row is ground
-                } else if (y < oldHeight -1 && x < gameState.level.width) {
-                    newRow.push(oldGrid[y][x]); // Copy old data
+                } else if (oldGrid.length > 0 && y < oldHeight - 1 && x < gameState.level.width) {
+                    // Copy old data only if oldGrid is not empty
+                    newRow.push(oldGrid[y][x]);
                 } else {
                     newRow.push(null); // Fill new space with empty tiles
                 }

@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jumpina</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div id="app-wrapper">
+        <div id="toolbar">
+            <div class="toolbar-section">
+                <button id="play-btn" class="tool-btn" data-tool="play">Play</button>
+                <button id="edit-btn" class="tool-btn active" data-tool="edit">Edit</button>
+            </div>
+            <div class="toolbar-section">
+                <button class="tool-btn" data-tool="platform" title="Right-click to upload sprite">Platform</button>
+                <button class="tool-btn" data-tool="coin" title="Right-click to upload sprite">Coin</button>
+                <button class="tool-btn" data-tool="spike" title="Right-click to upload sprite">Spike</button>
+                <button class="tool-btn" data-tool="finish" title="Right-click to upload sprite">Finish</button>
+                <button class="tool-btn" data-tool="player" title="Right-click to upload sprite">Player Start</button>
+                <button class="tool-btn" data-tool="eraser">Eraser</button>
+            </div>
+             <div class="toolbar-section">
+                <button class="tool-btn" data-tool="ground" title="Click to upload ground sprite">Ground Sprite</button>
+            </div>
+            <div class="toolbar-section">
+                <span>Width: <span id="width-label">32</span></span>
+                <button id="width-minus">-</button>
+                <button id="width-plus">+</button>
+                <span>Height: <span id="height-label">18</span></span>
+                <button id="height-minus">-</button>
+                <button id="height-plus">+</button>
+            </div>
+            <div class="toolbar-section">
+                <button id="save-btn">Save</button>
+                <button id="load-btn">Load</button>
+            </div>
+        </div>
+        <div id="canvas-container">
+            <canvas id="game-canvas"></canvas>
+        </div>
+    </div>
+    <div id="asset-inputs" style="display: none;">
+        <input type="file" id="platform-asset-input" data-asset="platform" accept="image/*">
+        <input type="file" id="coin-asset-input" data-asset="coin" accept="image/*">
+        <input type="file" id="spike-asset-input" data-asset="spike" accept="image/*">
+        <input type="file" id="finish-asset-input" data-asset="finish" accept="image/*">
+        <input type="file" id="player-asset-input" data-asset="player" accept="image/*">
+        <input type="file" id="ground-asset-input" data-asset="ground" accept="image/*">
+        <input type="file" id="load-level-input" accept=".json">
+    </div>
+    <script src="js/main.js"></script>
+</body>
+</html>

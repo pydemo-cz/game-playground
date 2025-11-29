@@ -51,8 +51,25 @@
 
         <div id="canvas-container">
             <canvas id="game-canvas"></canvas>
+
+            <!-- Mobile Controls Overlay -->
+            <div id="mobile-controls" class="hidden">
+                <div class="control-group-left">
+                    <div id="btn-left" class="control-btn" data-key="left"></div>
+                    <div id="btn-right" class="control-btn" data-key="right"></div>
+                </div>
+                <div id="btn-jump" class="control-btn" data-key="jump"></div>
+            </div>
         </div>
     </div>
+
+    <!-- Hidden inputs for mobile control assets -->
+    <div id="mobile-assets-inputs" style="display: none;">
+        <input type="file" id="btn-left-asset-input" data-asset="btnLeft" accept="image/*">
+        <input type="file" id="btn-right-asset-input" data-asset="btnRight" accept="image/*">
+        <input type="file" id="btn-jump-asset-input" data-asset="btnJump" accept="image/*">
+    </div>
+
     <script src="js/main.js"></script>
 </body>
 </html>

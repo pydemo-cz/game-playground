@@ -6,8 +6,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Configuration ---
     const CONFIG = {
         GRID_SIZE: 60,
-        PLAYER_WIDTH: 54, // 90px at 60px grid = 0.9 grid units. Scaled down for now.
-        PLAYER_HEIGHT: 72, // 120px at 60px grid = 1.2 grid units.
+        PLAYER_WIDTH: 90, // 90px (1.5x grid size)
+        PLAYER_HEIGHT: 120, // 120px (2x grid size)
         MOVE_SPEED: 5,
         JUMP_FORCE: 18,
         GRAVITY: 0.8,
@@ -920,19 +920,6 @@ document.addEventListener('DOMContentLoaded', () => {
         initializeGrid();
         setupAssetInputs();
         setupInputListeners();
-        addControlsAssetTool();
-
-        // Add specific controls tool logic
-        const toolsSection = document.getElementById('tools');
-        const controlsBtn = document.createElement('button');
-        controlsBtn.className = 'tool-btn';
-        controlsBtn.dataset.tool = 'controls';
-        controlsBtn.textContent = 'Controls';
-        toolsSection.appendChild(controlsBtn);
-
-
-        // Add specific controls tool logic if not already present
-        // (It was added in DOM Elements section but checking again)
 
         // Initial tool setup
         if (moveToolBtn) {

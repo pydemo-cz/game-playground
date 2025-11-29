@@ -103,7 +103,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function setupInputListeners() {
         window.addEventListener('keydown', (e) => {
-            // Allow input in both modes, but filter actions in update()
+            if (gameState.gameMode !== 'PLAY') return;
             switch (e.code) {
                 case 'ArrowLeft':
                 case 'KeyA':
@@ -119,6 +119,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
         window.addEventListener('keyup', (e) => {
+            if (gameState.gameMode !== 'PLAY') return;
             switch (e.code) {
                 case 'ArrowLeft':
                 case 'KeyA':
@@ -140,7 +141,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const btnJump = document.getElementById('btn-jump');
 
         const setupTouch = (el, key) => {
-            if (!el) return;
             el.addEventListener('touchstart', (e) => { e.preventDefault(); keys[key] = true; });
             el.addEventListener('touchend', (e) => { e.preventDefault(); keys[key] = false; });
             // Add mouse events for testing on desktop
@@ -236,8 +236,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 updateMobileButtonVisuals();
             }
 
-            console.log(`Asset '${assetName}' processed and cached.`);
-        });
+            console.log(`Asset '${assetName}' loaded and cached.`);
+        };
+        updateBtn('btn-left', 'btnLeft');
+        updateBtn('btn-right', 'btnRight');
+        updateBtn('btn-jump', 'btnJump');
     }
 
     function updateMobileButtonVisuals() {
@@ -261,81 +264,80 @@ document.addEventListener('DOMContentLoaded', () => {
     function setupAssetInputs() {
         // Legacy listener for existing inputs
         const assetInputs = document.getElementById('asset-inputs');
-        if (assetInputs) {
-            assetInputs.addEventListener('change', (e) => {
-                if (e.target.type === 'file') {
-                    const assetName = e.target.dataset.asset;
-                    handleAssetUpload(e.target.files[0], assetName);
+        assetInputs.addEventListener('change', (e) => {
+            if (e.target.type === 'file') {
+                const assetName = e.target.dataset.asset;
+                handleAssetUpload(e.target.files[0], assetName);
+            }
+        });
+
+        const mobileAssetsInputs = document.getElementById('mobile-assets-inputs');
+        mobileAssetsInputs.addEventListener('change', (e) => {
+             if (e.target.type === 'file') {
+                const assetName = e.target.dataset.asset;
+                handleAssetUpload(e.target.files[0], assetName);
+            }
+        });
+
+        // Re-query toolButtons because we added one
+        const allToolButtons = document.querySelectorAll('.tool-btn');
+        allToolButtons.forEach(btn => {
+            const tool = btn.dataset.tool;
+            if (tool === 'move') return; // Move tool has no asset
+
+            // The 'ground' button is for asset upload only, not for painting.
+            if (tool !== 'eraser' && tool !== 'player' && tool !== 'ground') {
+                const input = document.getElementById(`${tool}-asset-input`);
+                if (input) {
+                    btn.addEventListener('contextmenu', (e) => {
+                        e.preventDefault();
+                        input.click();
+                    });
                 }
+            }
+        });
+
+        // Special handlers
+        const groundBtn = document.querySelector('.tool-btn[data-tool="ground"]');
+        const groundInput = document.getElementById('ground-asset-input');
+        if (groundBtn && groundInput) {
+            groundBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                groundInput.click();
             });
         }
 
-        const mobileAssetsInputs = document.getElementById('mobile-assets-inputs');
-        if (mobileAssetsInputs) {
-            mobileAssetsInputs.addEventListener('change', (e) => {
-                 if (e.target.type === 'file') {
-                    const assetName = e.target.dataset.asset;
-                    handleAssetUpload(e.target.files[0], assetName);
-                }
+        const playerBtn = document.querySelector('.tool-btn[data-tool="player"]');
+        const playerInput = document.getElementById('player-asset-input');
+        if(playerBtn && playerInput) {
+             playerBtn.addEventListener('contextmenu', (e) => {
+                e.preventDefault();
+                playerInput.click();
             });
         }
     }
 
-    // --- Contextual Toolbar UI ---
-    function updateContextControls(toolName) {
-        // Find or create the context controls container
-        let container = document.getElementById('context-controls');
-        if (!container) {
-             // Create it next to size controls (last toolbar section)
-             const toolbar = document.getElementById('toolbar');
-             container = document.createElement('div');
-             container.id = 'context-controls';
-             container.className = 'toolbar-section';
-             // Insert before the last section (Size) or just append
-             toolbar.appendChild(container);
-        }
+    // Helper to setup a specialized tool for uploading mobile assets
+    function addControlsAssetTool() {
+        const toolsSection = document.getElementById('tools');
+        const btn = document.createElement('button');
+        btn.className = 'tool-btn control-upload-btn';
+        btn.textContent = 'Controls';
+        btn.title = 'Upload Mobile Controls (Left/Right/Jump)';
+        toolsSection.appendChild(btn);
 
-        // Clear existing
-        container.innerHTML = '';
-
-        // Helper to create upload button
-        const createUploadBtn = (label, assetKey) => {
-             const btn = document.createElement('button');
-             btn.textContent = label;
-             btn.style.fontSize = '12px';
-
-             // Create hidden input
-             const input = document.createElement('input');
-             input.type = 'file';
-             input.accept = 'image/*';
-             input.style.display = 'none';
-             input.addEventListener('change', (e) => {
-                 handleAssetUpload(e.target.files[0], assetKey);
-             });
-             container.appendChild(input);
-
-             btn.onclick = () => input.click();
-             container.appendChild(btn);
+        // Add specific upload buttons
+        const createUploadBtn = (label, inputId, title) => {
+             const b = document.createElement('button');
+             b.textContent = label;
+             b.className = 'control-sub-btn';
+             b.title = title;
+             b.onclick = () => document.getElementById(inputId).click();
+             toolsSection.appendChild(b);
         };
-
-        if (toolName === 'controls') {
-             createUploadBtn('Upload Left', 'btnLeft');
-             createUploadBtn('Upload Right', 'btnRight');
-             createUploadBtn('Upload Jump', 'btnJump');
-        } else if (toolName === 'player') {
-             createUploadBtn('Upload Idle', 'playerIdle');
-             createUploadBtn('Upload Jump', 'playerJump');
-        } else if (toolName === 'platform') {
-             createUploadBtn('Upload Platform', 'platform');
-        } else if (toolName === 'spike') {
-             createUploadBtn('Upload Spike', 'spike');
-        } else if (toolName === 'coin') {
-             createUploadBtn('Upload Coin', 'coin');
-        } else if (toolName === 'finish') {
-             createUploadBtn('Upload Finish', 'finish');
-        } else if (toolName === 'ground') {
-             createUploadBtn('Upload Ground', 'ground');
-        }
+        createUploadBtn('UpL', 'btn-left-asset-input', 'Upload Left Button Sprite');
+        createUploadBtn('UpR', 'btn-right-asset-input', 'Upload Right Button Sprite');
+        createUploadBtn('UpJ', 'btn-jump-asset-input', 'Upload Jump Button Sprite');
     }
 
     // --- World & Grid ---
@@ -783,6 +785,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 gameState.camera.x = gameState.cameraStart.x - dx;
                 gameState.camera.y = gameState.cameraStart.y - dy;
+
+                // Clamp
+                /* // Optional: Clamp in editor? Maybe not, to see edges freely.
+                   // But let's prevent getting lost.
+                   const worldWidth = gameState.level.width * CONFIG.GRID_SIZE;
+                   const worldHeight = gameState.level.height * CONFIG.GRID_SIZE;
+                   gameState.camera.x = Math.max(-100, Math.min(gameState.camera.x, worldWidth));
+                   gameState.camera.y = Math.max(-100, Math.min(gameState.camera.y, worldHeight));
+                */
             } else if (e.type === 'mouseup' || e.type === 'mouseleave') {
                 gameState.isDraggingCamera = false;
                 canvas.style.cursor = 'default';
@@ -803,8 +814,6 @@ document.addEventListener('DOMContentLoaded', () => {
     function paintTile(x, y) {
         if (y >= 0 && y < gameState.level.height - 1 && x >= 0 && x < gameState.level.width) {
             const tool = gameState.activeTool;
-            // Don't paint if tool is controls
-            if (tool === 'controls') return;
 
             // Place player start point (unique)
             if (tool === 'player' || tool === 'finish') {
@@ -901,6 +910,7 @@ document.addEventListener('DOMContentLoaded', () => {
         initializeGrid();
         setupAssetInputs();
         setupInputListeners();
+        addControlsAssetTool();
 
         // Add specific controls tool logic
         const toolsSection = document.getElementById('tools');
@@ -973,13 +983,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if (moveToolBtn) {
             moveToolBtn.classList.add('active');
             gameState.activeTool = 'move';
-            updateContextControls('move');
         } else {
             const platformBtn = document.querySelector('.tool-btn[data-tool="platform"]');
             if(platformBtn) {
                 platformBtn.classList.add('active');
                  gameState.activeTool = 'platform';
-                 updateContextControls('platform');
             }
         }
 

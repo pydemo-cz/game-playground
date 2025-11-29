@@ -24,6 +24,11 @@
             "title": "Jumpik",
             "description": "A hand-drawn platformer adventure.",
             "url": "jumpik/index.html"
+        },
+        {
+            "title": "Jumpina",
+            "description": "A 2D platformer with a built-in level editor.",
+            "url": "jumpina/index.html"
         }
     ]
 }

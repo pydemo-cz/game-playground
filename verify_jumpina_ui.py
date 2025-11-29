@@ -10,21 +10,27 @@ def verify_ui_changes():
         page.wait_for_selector("#game-canvas")
 
         # 1. Check if Context Controls Container exists
-        if not page.is_visible("#context-controls"):
-             # It might be empty initially or created on tool click
-             pass
+        # It is created dynamically in updateContextControls(activeTool)
+        # Initially init calls updateContextControls('move') or 'platform'
+
+        # Wait a bit for init
+        page.wait_for_timeout(1000)
 
         # 2. Click on Platform Tool
         page.click('button[data-tool="platform"]')
-        # Expect "Upload Platform" button
+        page.wait_for_timeout(500)
+
+        # Expect "Upload Platform" button in #context-controls
         upload_btn = page.locator("#context-controls button").first
-        if "Upload Platform" in upload_btn.inner_text():
+        if upload_btn.count() > 0 and "Upload Platform" in upload_btn.inner_text():
             print("Platform upload button visible.")
         else:
-             print(f"Platform upload button missing. Found: {upload_btn.inner_text() if upload_btn.count() > 0 else 'None'}")
+             print(f"Platform upload button missing.")
 
         # 3. Click on Player Tool
         page.click('button[data-tool="player"]')
+        page.wait_for_timeout(500)
+
         # Expect "Upload Idle" and "Upload Jump"
         btns = page.locator("#context-controls button")
         texts = [btns.nth(i).inner_text() for i in range(btns.count())]
@@ -35,6 +41,8 @@ def verify_ui_changes():
 
         # 4. Click on Controls Tool
         page.click('button[data-tool="controls"]')
+        page.wait_for_timeout(500)
+
         btns = page.locator("#context-controls button")
         texts = [btns.nth(i).inner_text() for i in range(btns.count())]
         if "Upload Left" in texts and "Upload Jump" in texts:
@@ -42,7 +50,7 @@ def verify_ui_changes():
         else:
              print(f"Controls buttons missing. Found: {texts}")
 
-        page.screenshot(path="verification_ui.png")
+        page.screenshot(path="verification_ui_final.png")
         browser.close()
 
 if __name__ == "__main__":

@@ -130,6 +130,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
         window.addEventListener('keyup', (e) => {
+            if (gameState.gameMode !== 'PLAY') return;
             switch (e.code) {
                 case 'ArrowLeft':
                 case 'KeyA':
@@ -919,6 +920,16 @@ document.addEventListener('DOMContentLoaded', () => {
         initializeGrid();
         setupAssetInputs();
         setupInputListeners();
+        addControlsAssetTool();
+
+        // Add specific controls tool logic
+        const toolsSection = document.getElementById('tools');
+        const controlsBtn = document.createElement('button');
+        controlsBtn.className = 'tool-btn';
+        controlsBtn.dataset.tool = 'controls';
+        controlsBtn.textContent = 'Controls';
+        toolsSection.appendChild(controlsBtn);
+
 
         // Add specific controls tool logic if not already present
         // (It was added in DOM Elements section but checking again)

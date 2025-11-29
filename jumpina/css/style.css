@@ -1,0 +1,148 @@
+body, html {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background-color: #282c34;
+    font-family: sans-serif;
+}
+
+#app-wrapper {
+    width: 100%;
+    max-width: 1280px;
+    aspect-ratio: 16 / 9;
+    background-color: #20232a;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 0 20px rgba(0,0,0,0.5);
+}
+
+#toolbar {
+    width: 100%;
+    background-color: #3c4049;
+    padding: 8px;
+    box-sizing: border-box;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+}
+
+#editor-tools {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.toolbar-section {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+#toolbar button {
+    padding: 8px 12px;
+    background-color: #61dafb;
+    border: none;
+    border-radius: 4px;
+    color: #20232a;
+    cursor: pointer;
+    font-weight: bold;
+    transition: background-color 0.2s;
+}
+
+#toolbar button.active, #toolbar button:hover {
+    background-color: #4caf50;
+    color: white;
+}
+
+#toolbar span {
+    color: white;
+}
+
+#asset-preview-section {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    display: none; /* Hidden by default */
+}
+
+#asset-preview {
+    width: 40px;
+    height: 40px;
+    background-color: #20232a;
+    border: 2px solid #61dafb;
+    border-radius: 4px;
+    cursor: pointer;
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
+}
+
+#canvas-container {
+    flex-grow: 1;
+    background-color: #000;
+    overflow: auto; /* Default for edit mode */
+}
+
+#canvas-container.play-mode {
+    overflow: hidden;
+}
+
+#canvas-container.play-mode canvas {
+    width: 100%;
+    height: 100%;
+}
+
+canvas {
+    display: block;
+}
+
+#touch-controls {
+    display: none; /* Hidden by default */
+    position: absolute;
+    bottom: 20px;
+    width: 100%;
+    max-width: 1280px; /* Match app-wrapper */
+    padding: 0 20px;
+    box-sizing: border-box;
+    z-index: 10;
+}
+
+#canvas-container.play-mode + #touch-controls {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.touch-group {
+    display: flex;
+    gap: 20px;
+}
+
+.touch-control {
+    width: 80px;
+    height: 80px;
+    background-color: rgba(255, 255, 255, 0.2);
+    border-radius: 50%;
+    -webkit-user-select: none; /* Safari */
+    -ms-user-select: none; /* IE 10+ */
+    user-select: none;
+}
+
+#touch-jump {
+    margin-right: 20px;
+}
+
+#touch-left, #touch-right {
+    background-size: cover;
+    background-position: center;
+}
+#touch-jump {
+    background-size: cover;
+    background-position: center;
+}

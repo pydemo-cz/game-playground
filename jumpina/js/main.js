@@ -49,7 +49,8 @@ document.addEventListener('DOMContentLoaded', () => {
         assets: {
             // base64 strings will be stored here
             platform: null,
-            player: null,
+            playerIdle: null,
+            playerJump: null,
             spike: null,
             coin: null,
             finish: null,
@@ -155,11 +156,74 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
     // --- Asset Management ---
+    function processImage(file, targetWidth, targetHeight, keepRatio = false) {
+        return new Promise((resolve) => {
+            if (!file) {
+                 resolve(null);
+                 return;
+            }
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const img = new Image();
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = targetWidth;
+                    canvas.height = targetHeight;
+                    const ctx = canvas.getContext('2d');
+
+                    let sx = 0, sy = 0, sWidth = img.width, sHeight = img.height;
+
+                    if (keepRatio) {
+                         const targetRatio = targetWidth / targetHeight;
+                         const imgRatio = img.width / img.height;
+
+                         if (imgRatio > targetRatio) {
+                             // Image is wider than target: Crop width
+                             sWidth = img.height * targetRatio;
+                             sx = (img.width - sWidth) / 2;
+                         } else {
+                             // Image is taller than target: Crop height
+                             sHeight = img.width / targetRatio;
+                             sy = (img.height - sHeight) / 2;
+                         }
+                    } else {
+                        // Square (Grid Size)
+                         const size = Math.min(img.width, img.height);
+                         sx = (img.width - size) / 2;
+                         sy = (img.height - size) / 2;
+                         sWidth = size;
+                         sHeight = size;
+                    }
+
+                    ctx.drawImage(img, sx, sy, sWidth, sHeight, 0, 0, targetWidth, targetHeight);
+                    resolve(canvas.toDataURL(file.type));
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        });
+    }
+
     function handleAssetUpload(file, assetName) {
         if (!file) return;
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            const base64 = e.target.result;
+
+        // Determine dimensions based on asset type
+        let w = CONFIG.GRID_SIZE;
+        let h = CONFIG.GRID_SIZE;
+        let keepRatio = false;
+
+        if (assetName === 'playerIdle' || assetName === 'playerJump') {
+            w = CONFIG.PLAYER_WIDTH;
+            h = CONFIG.PLAYER_HEIGHT;
+            keepRatio = true;
+        } else if (['btnLeft', 'btnRight', 'btnJump'].includes(assetName)) {
+            w = 80;
+            h = 80;
+        }
+
+        processImage(file, w, h, keepRatio).then(base64 => {
+            if (!base64) return;
+
             gameState.assets[assetName] = base64;
 
             // Create and cache the image object
@@ -174,7 +238,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
             console.log(`Asset '${assetName}' loaded and cached.`);
         };
-        reader.readAsDataURL(file);
+        updateBtn('btn-left', 'btnLeft');
+        updateBtn('btn-right', 'btnRight');
+        updateBtn('btn-jump', 'btnJump');
     }
 
     function updateMobileButtonVisuals() {
@@ -196,6 +262,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function setupAssetInputs() {
+        // Legacy listener for existing inputs
         const assetInputs = document.getElementById('asset-inputs');
         assetInputs.addEventListener('change', (e) => {
             if (e.target.type === 'file') {
@@ -358,7 +425,11 @@ document.addEventListener('DOMContentLoaded', () => {
         // Draw Player in PLAY mode
         if (gameState.gameMode === 'PLAY') {
             const p = gameState.player;
-            const img = assetImages['player'];
+            // Determine sprite based on state (jump vs idle)
+            let img = assetImages['playerIdle'];
+            if (p.jumps < 2) { // In air (simple check, 2 jumps means on ground)
+                 img = assetImages['playerJump'] || img;
+            }
 
             ctx.save();
             // Player is already in world coordinates, camera transform handles position
@@ -500,6 +571,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
     function update() {
+        // --- Editor Camera Navigation ---
+        if (gameState.gameMode === 'EDIT') {
+            const CAM_SPEED = 10;
+            if (keys.left) gameState.camera.x -= CAM_SPEED;
+            if (keys.right) gameState.camera.x += CAM_SPEED;
+
+            // Clamp camera
+            const worldWidth = gameState.level.width * CONFIG.GRID_SIZE;
+            const worldHeight = gameState.level.height * CONFIG.GRID_SIZE;
+            gameState.camera.x = Math.max(0, Math.min(gameState.camera.x, worldWidth - CONFIG.CANVAS_WIDTH));
+            gameState.camera.y = Math.max(0, Math.min(gameState.camera.y, worldHeight - CONFIG.CANVAS_HEIGHT));
+        }
+
         if (gameState.gameMode !== 'PLAY') return;
 
         const p = gameState.player;
@@ -828,6 +912,15 @@ document.addEventListener('DOMContentLoaded', () => {
         setupInputListeners();
         addControlsAssetTool();
 
+        // Add specific controls tool logic
+        const toolsSection = document.getElementById('tools');
+        const controlsBtn = document.createElement('button');
+        controlsBtn.className = 'tool-btn';
+        controlsBtn.dataset.tool = 'controls';
+        controlsBtn.textContent = 'Controls';
+        toolsSection.appendChild(controlsBtn);
+
+
         // Level resize buttons
         const widthPlusBtn = document.getElementById('width-plus');
         const widthMinusBtn = document.getElementById('width-minus');
@@ -882,6 +975,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
                 btn.classList.add('active');
                 gameState.activeTool = btn.dataset.tool;
+                updateContextControls(gameState.activeTool);
             });
         });
 

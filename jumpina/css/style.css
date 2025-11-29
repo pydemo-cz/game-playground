@@ -91,7 +91,7 @@ canvas {
 /* Mobile controls overlay */
 #mobile-controls {
     position: absolute;
-    bottom: 20px;
+    bottom: 120px; /* Moved up from 20px to ensure visibility */
     left: 0;
     width: 100%;
     height: 0; /* Don't block clicks in the middle */

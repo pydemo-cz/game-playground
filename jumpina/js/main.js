@@ -6,8 +6,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Configuration ---
     const CONFIG = {
         GRID_SIZE: 60,
-        PLAYER_WIDTH: 54, // 90px at 60px grid = 0.9 grid units. Scaled down for now.
-        PLAYER_HEIGHT: 72, // 120px at 60px grid = 1.2 grid units.
+        PLAYER_WIDTH: 90, // 90px (1.5x grid size)
+        PLAYER_HEIGHT: 120, // 120px (2x grid size)
         MOVE_SPEED: 5,
         JUMP_FORCE: 18,
         GRAVITY: 0.8,
@@ -110,6 +110,8 @@ document.addEventListener('DOMContentLoaded', () => {
         left: false,
         right: false,
         jump: false,
+        up: false,
+        down: false
     };
 
     function setupInputListeners() {
@@ -124,13 +126,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 case 'KeyD':
                     keys.right = true;
                     break;
+                case 'ArrowUp':
+                case 'KeyW':
+                    keys.up = true;
+                    break;
+                case 'ArrowDown':
+                case 'KeyS':
+                    keys.down = true;
+                    break;
                 case 'Space':
                     keys.jump = true;
                     break;
             }
         });
         window.addEventListener('keyup', (e) => {
-            if (gameState.gameMode !== 'PLAY') return;
+            // Important: Handle keyup in ALL modes to prevent "stuck" keys
             switch (e.code) {
                 case 'ArrowLeft':
                 case 'KeyA':
@@ -139,6 +149,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 case 'ArrowRight':
                 case 'KeyD':
                     keys.right = false;
+                    break;
+                case 'ArrowUp':
+                case 'KeyW':
+                    keys.up = false;
+                    break;
+                case 'ArrowDown':
+                case 'KeyS':
+                    keys.down = false;
                     break;
                 case 'Space':
                     keys.jump = false;
@@ -585,14 +603,11 @@ document.addEventListener('DOMContentLoaded', () => {
         // --- Editor Camera Navigation ---
         if (gameState.gameMode === 'EDIT') {
             const CAM_SPEED = 10;
+            // Allow camera movement regardless of active tool
             if (keys.left) gameState.camera.x -= CAM_SPEED;
             if (keys.right) gameState.camera.x += CAM_SPEED;
-            // Also up/down
-            if (keys.jump) { // Space can be jump/up in editor? No, Space is jump.
-               // Need to handle up/down if requested, but left/right was specifically asked.
-               // Let's stick to left/right for now to avoid key conflict or add arrow up/down.
-               // ArrowUp/Down are not in 'keys'.
-            }
+            if (keys.up) gameState.camera.y -= CAM_SPEED;
+            if (keys.down) gameState.camera.y += CAM_SPEED;
 
             // Clamp camera
             const worldWidth = gameState.level.width * CONFIG.GRID_SIZE;
@@ -616,12 +631,25 @@ document.addEventListener('DOMContentLoaded', () => {
             p.facingRight = true;
         }
         p.x += p.vx;
+
+        // Clamp Horizontal Position (Prevent going off-screen)
+        const worldWidth = gameState.level.width * CONFIG.GRID_SIZE;
+        p.x = Math.max(0, Math.min(p.x, worldWidth - CONFIG.PLAYER_WIDTH));
+
         checkCollisionsX();
 
 
         // --- Vertical Movement & Gravity ---
         p.vy += CONFIG.GRAVITY;
         p.y += p.vy;
+
+        // Check falling off the map
+        const worldHeight = gameState.level.height * CONFIG.GRID_SIZE;
+        if (p.y > worldHeight) {
+            restartLevel();
+            return;
+        }
+
         checkCollisionsY();
 
 
@@ -642,8 +670,12 @@ document.addEventListener('DOMContentLoaded', () => {
         gameState.camera.y += (targetCamY - gameState.camera.y) * CONFIG.CAMERA_LERP;
 
         // Clamp camera to world bounds
-        const worldWidth = gameState.level.width * CONFIG.GRID_SIZE;
-        const worldHeight = gameState.level.height * CONFIG.GRID_SIZE;
+        // worldWidth is already defined above
+        // const worldWidth = gameState.level.width * CONFIG.GRID_SIZE;
+        // const worldHeight = gameState.level.height * CONFIG.GRID_SIZE;
+        // Actually worldHeight is also defined above. Let's reuse them or just use let/no-const.
+        // To be safe and clean, I will just remove the 'const' and assign to new variable names or just reuse if they are in scope.
+        // They are in 'update' scope.
 
         gameState.camera.x = Math.max(0, Math.min(gameState.camera.x, worldWidth - CONFIG.CANVAS_WIDTH));
         gameState.camera.y = Math.max(0, Math.min(gameState.camera.y, worldHeight - CONFIG.CANVAS_HEIGHT));
@@ -920,19 +952,6 @@ document.addEventListener('DOMContentLoaded', () => {
         initializeGrid();
         setupAssetInputs();
         setupInputListeners();
-        addControlsAssetTool();
-
-        // Add specific controls tool logic
-        const toolsSection = document.getElementById('tools');
-        const controlsBtn = document.createElement('button');
-        controlsBtn.className = 'tool-btn';
-        controlsBtn.dataset.tool = 'controls';
-        controlsBtn.textContent = 'Controls';
-        toolsSection.appendChild(controlsBtn);
-
-
-        // Add specific controls tool logic if not already present
-        // (It was added in DOM Elements section but checking again)
 
         // Initial tool setup
         if (moveToolBtn) {

@@ -61,6 +61,8 @@ document.addEventListener('DOMContentLoaded', () => {
             btnJump: null,
             btnEdit: null,
         },
+        originalAssets: {}, // Store raw Data URLs for reprocessing
+        lastUploadedAssetKey: null,
     };
 
     // --- DOM Elements ---
@@ -188,6 +190,63 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
     // --- Asset Management ---
+
+    // Core logic to process an Image object and return a Data URL
+    function processImageObject(img, targetWidth, targetHeight, keepRatio, threshold) {
+        return new Promise((resolve) => {
+            const canvas = document.createElement('canvas');
+            canvas.width = targetWidth;
+            canvas.height = targetHeight;
+            const ctx = canvas.getContext('2d');
+
+            let sx = 0, sy = 0, sWidth = img.width, sHeight = img.height;
+
+            if (keepRatio) {
+                 const targetRatio = targetWidth / targetHeight;
+                 const imgRatio = img.width / img.height;
+
+                 if (imgRatio > targetRatio) {
+                     // Image is wider than target: Crop width
+                     sWidth = img.height * targetRatio;
+                     sx = (img.width - sWidth) / 2;
+                 } else {
+                     // Image is taller than target: Crop height
+                     sHeight = img.width / targetRatio;
+                     sy = (img.height - sHeight) / 2;
+                 }
+            } else {
+                // Square (Grid Size)
+                 const size = Math.min(img.width, img.height);
+                 sx = (img.width - size) / 2;
+                 sy = (img.height - size) / 2;
+                 sWidth = size;
+                 sHeight = size;
+            }
+
+            ctx.drawImage(img, sx, sy, sWidth, sHeight, 0, 0, targetWidth, targetHeight);
+
+            // --- Transparency Logic ---
+            console.log(`Applying transparency with threshold: ${threshold}`);
+            const imageData = ctx.getImageData(0, 0, targetWidth, targetHeight);
+            const data = imageData.data;
+            for (let i = 0; i < data.length; i += 4) {
+                const r = data[i];
+                const g = data[i + 1];
+                const b = data[i + 2];
+                // If pixel is lighter than threshold (white/light grey), make it transparent
+                if (r > threshold && g > threshold && b > threshold) {
+                    data[i + 3] = 0; // Alpha = 0
+                }
+            }
+            ctx.putImageData(imageData, 0, 0);
+            // ---------------------------
+
+            // Always export as PNG to preserve the alpha channel we just modified
+            resolve(canvas.toDataURL('image/png'));
+        });
+    }
+
+    // Original helper wrapping FileReader + processImageObject
     function processImage(file, targetWidth, targetHeight, keepRatio = false, threshold = 240) {
         return new Promise((resolve) => {
             if (!file) {
@@ -198,55 +257,7 @@ document.addEventListener('DOMContentLoaded', () => {
             reader.onload = (e) => {
                 const img = new Image();
                 img.onload = () => {
-                    const canvas = document.createElement('canvas');
-                    canvas.width = targetWidth;
-                    canvas.height = targetHeight;
-                    const ctx = canvas.getContext('2d');
-
-                    let sx = 0, sy = 0, sWidth = img.width, sHeight = img.height;
-
-                    if (keepRatio) {
-                         const targetRatio = targetWidth / targetHeight;
-                         const imgRatio = img.width / img.height;
-
-                         if (imgRatio > targetRatio) {
-                             // Image is wider than target: Crop width
-                             sWidth = img.height * targetRatio;
-                             sx = (img.width - sWidth) / 2;
-                         } else {
-                             // Image is taller than target: Crop height
-                             sHeight = img.width / targetRatio;
-                             sy = (img.height - sHeight) / 2;
-                         }
-                    } else {
-                        // Square (Grid Size)
-                         const size = Math.min(img.width, img.height);
-                         sx = (img.width - size) / 2;
-                         sy = (img.height - size) / 2;
-                         sWidth = size;
-                         sHeight = size;
-                    }
-
-                    ctx.drawImage(img, sx, sy, sWidth, sHeight, 0, 0, targetWidth, targetHeight);
-
-                    // --- Transparency Logic ---
-                    console.log(`Applying transparency with threshold: ${threshold}`);
-                    const imageData = ctx.getImageData(0, 0, targetWidth, targetHeight);
-                    const data = imageData.data;
-                    for (let i = 0; i < data.length; i += 4) {
-                        const r = data[i];
-                        const g = data[i + 1];
-                        const b = data[i + 2];
-                        // If pixel is lighter than threshold (white/light grey), make it transparent
-                        if (r > threshold && g > threshold && b > threshold) {
-                            data[i + 3] = 0; // Alpha = 0
-                        }
-                    }
-                    ctx.putImageData(imageData, 0, 0);
-                    // ---------------------------
-
-                    // Always export as PNG to preserve the alpha channel we just modified
-                    resolve(canvas.toDataURL('image/png'));
+                    processImageObject(img, targetWidth, targetHeight, keepRatio, threshold).then(resolve);
                 };
                 img.onerror = (err) => {
                     console.error("Failed to load image for processing", err);
@@ -262,10 +273,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    function handleAssetUpload(file, assetName) {
-        if (!file) return;
-
-        // Determine dimensions based on asset type
+    function getAssetDimensions(assetName) {
         let w = CONFIG.GRID_SIZE;
         let h = CONFIG.GRID_SIZE;
         let keepRatio = false;
@@ -275,39 +283,73 @@ document.addEventListener('DOMContentLoaded', () => {
             h = CONFIG.PLAYER_HEIGHT;
             keepRatio = true;
         } else if (['btnLeft', 'btnRight', 'btnJump'].includes(assetName)) {
-            // Mobile buttons are squares? CSS says 80x80. Let's make them 80x80.
             w = 80;
             h = 80;
         } else if (assetName === 'btnEdit') {
              w = 60;
              h = 60;
         }
+        return { w, h, keepRatio };
+    }
 
+    function handleAssetUpload(file, assetName) {
+        if (!file) return;
+
+        const { w, h, keepRatio } = getAssetDimensions(assetName);
         const threshold = parseInt(document.getElementById('transparency-slider').value) || 240;
         console.log(`Uploading '${assetName}' with threshold ${threshold}`);
 
-        processImage(file, w, h, keepRatio, threshold).then(base64 => {
-            if (!base64) return;
+        // Read file first to store raw data for later adjustments
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const rawDataURL = e.target.result;
+            gameState.originalAssets[assetName] = rawDataURL;
+            gameState.lastUploadedAssetKey = assetName;
 
-            gameState.assets[assetName] = base64;
-
-            // Create and cache the image object
+            // Process it
             const img = new Image();
-            img.src = base64;
-            // Force browser to reload image? Usually redundant but safe.
+            img.onload = () => {
+                processImageObject(img, w, h, keepRatio, threshold).then(base64 => {
+                    updateAssetState(assetName, base64);
+                });
+            };
+            img.src = rawDataURL;
+        };
+        reader.readAsDataURL(file);
+    }
 
-            assetImages[assetName] = img;
+    function updateAssetState(assetName, base64) {
+        gameState.assets[assetName] = base64;
+        const img = new Image();
+        img.src = base64;
+        // Force browser to reload image? Usually redundant but safe.
 
-            // Update mobile buttons if applicable
-            if (['btnLeft', 'btnRight', 'btnJump'].includes(assetName)) {
-                updateMobileButtonVisuals();
-            }
-            if (assetName === 'btnEdit') {
-                updateEditButtonVisuals();
-            }
+        assetImages[assetName] = img;
 
-            console.log(`Asset '${assetName}' processed and cached. Length: ${base64.length}`);
-        });
+        // Update mobile buttons if applicable
+        if (['btnLeft', 'btnRight', 'btnJump'].includes(assetName)) {
+            updateMobileButtonVisuals();
+        }
+        if (assetName === 'btnEdit') {
+            updateEditButtonVisuals();
+        }
+
+        console.log(`Asset '${assetName}' processed and cached. Length: ${base64.length}`);
+    }
+
+    function updateEditButtonVisuals() {
+        const el = document.getElementById('btn-edit-overlay');
+        const assetKey = 'btnEdit';
+        if (gameState.assets[assetKey]) {
+            el.style.backgroundImage = `url(${gameState.assets[assetKey]})`;
+            el.style.backgroundColor = 'transparent';
+            el.style.border = 'none';
+        } else {
+            // Fallback
+            el.style.backgroundImage = 'none';
+            el.style.backgroundColor = 'rgba(255, 255, 255, 0.3)';
+            el.style.border = '2px solid rgba(255, 255, 255, 0.5)';
+        }
     }
 
     function updateEditButtonVisuals() {
@@ -1079,6 +1121,27 @@ document.addEventListener('DOMContentLoaded', () => {
         const bgColorPicker = document.getElementById('bg-color-picker');
         bgColorPicker.addEventListener('input', (e) => {
             gameState.level.backgroundColor = e.target.value;
+        });
+
+        const transparencySlider = document.getElementById('transparency-slider');
+        transparencySlider.addEventListener('input', (e) => {
+            const threshold = parseInt(e.target.value);
+            console.log(`Slider changed to ${threshold}. Last Key: ${gameState.lastUploadedAssetKey}`);
+            // Re-process last uploaded asset if available
+            if (gameState.lastUploadedAssetKey && gameState.originalAssets[gameState.lastUploadedAssetKey]) {
+                const assetKey = gameState.lastUploadedAssetKey;
+                const rawDataURL = gameState.originalAssets[assetKey];
+                const { w, h, keepRatio } = getAssetDimensions(assetKey);
+
+                // We need to reload the image from raw data
+                const img = new Image();
+                img.onload = () => {
+                    processImageObject(img, w, h, keepRatio, threshold).then(base64 => {
+                        updateAssetState(assetKey, base64);
+                    });
+                };
+                img.src = rawDataURL;
+            }
         });
 
         // Edit Overlay Listener

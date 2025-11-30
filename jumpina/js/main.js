@@ -352,6 +352,21 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    function updateEditButtonVisuals() {
+        const el = document.getElementById('btn-edit-overlay');
+        const assetKey = 'btnEdit';
+        if (gameState.assets[assetKey]) {
+            el.style.backgroundImage = `url(${gameState.assets[assetKey]})`;
+            el.style.backgroundColor = 'transparent';
+            el.style.border = 'none';
+        } else {
+            // Fallback
+            el.style.backgroundImage = 'none';
+            el.style.backgroundColor = 'rgba(255, 255, 255, 0.3)';
+            el.style.border = '2px solid rgba(255, 255, 255, 0.5)';
+        }
+    }
+
     function updateMobileButtonVisuals() {
         const updateBtn = (id, assetKey) => {
             const el = document.getElementById(id);

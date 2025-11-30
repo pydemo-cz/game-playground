@@ -36,6 +36,7 @@ document.addEventListener('DOMContentLoaded', () => {
             width: 32, // Default width
             height: 18, // Default height
             grid: [],
+            backgroundColor: '#ffffff', // Default background color
         },
         collectibles: {
             total: 0,
@@ -58,7 +59,11 @@ document.addEventListener('DOMContentLoaded', () => {
             btnLeft: null,
             btnRight: null,
             btnJump: null,
+            btnEdit: null,
         },
+        originalAssets: {}, // Store raw Data URLs for reprocessing
+        lastUploadedAssetKey: null,
+        editorPlayerPreview: 'Idle', // 'Idle' or 'Jump'
     };
 
     // --- DOM Elements ---
@@ -186,7 +191,64 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
     // --- Asset Management ---
-    function processImage(file, targetWidth, targetHeight, keepRatio = false) {
+
+    // Core logic to process an Image object and return a Data URL
+    function processImageObject(img, targetWidth, targetHeight, keepRatio, threshold) {
+        return new Promise((resolve) => {
+            const canvas = document.createElement('canvas');
+            canvas.width = targetWidth;
+            canvas.height = targetHeight;
+            const ctx = canvas.getContext('2d');
+
+            let sx = 0, sy = 0, sWidth = img.width, sHeight = img.height;
+
+            if (keepRatio) {
+                 const targetRatio = targetWidth / targetHeight;
+                 const imgRatio = img.width / img.height;
+
+                 if (imgRatio > targetRatio) {
+                     // Image is wider than target: Crop width
+                     sWidth = img.height * targetRatio;
+                     sx = (img.width - sWidth) / 2;
+                 } else {
+                     // Image is taller than target: Crop height
+                     sHeight = img.width / targetRatio;
+                     sy = (img.height - sHeight) / 2;
+                 }
+            } else {
+                // Square (Grid Size)
+                 const size = Math.min(img.width, img.height);
+                 sx = (img.width - size) / 2;
+                 sy = (img.height - size) / 2;
+                 sWidth = size;
+                 sHeight = size;
+            }
+
+            ctx.drawImage(img, sx, sy, sWidth, sHeight, 0, 0, targetWidth, targetHeight);
+
+            // --- Transparency Logic ---
+            console.log(`Applying transparency with threshold: ${threshold}`);
+            const imageData = ctx.getImageData(0, 0, targetWidth, targetHeight);
+            const data = imageData.data;
+            for (let i = 0; i < data.length; i += 4) {
+                const r = data[i];
+                const g = data[i + 1];
+                const b = data[i + 2];
+                // If pixel is lighter than threshold (white/light grey), make it transparent
+                if (r > threshold && g > threshold && b > threshold) {
+                    data[i + 3] = 0; // Alpha = 0
+                }
+            }
+            ctx.putImageData(imageData, 0, 0);
+            // ---------------------------
+
+            // Always export as PNG to preserve the alpha channel we just modified
+            resolve(canvas.toDataURL('image/png'));
+        });
+    }
+
+    // Original helper wrapping FileReader + processImageObject
+    function processImage(file, targetWidth, targetHeight, keepRatio = false, threshold = 240) {
         return new Promise((resolve) => {
             if (!file) {
                  resolve(null);
@@ -196,48 +258,23 @@ document.addEventListener('DOMContentLoaded', () => {
             reader.onload = (e) => {
                 const img = new Image();
                 img.onload = () => {
-                    const canvas = document.createElement('canvas');
-                    canvas.width = targetWidth;
-                    canvas.height = targetHeight;
-                    const ctx = canvas.getContext('2d');
-
-                    let sx = 0, sy = 0, sWidth = img.width, sHeight = img.height;
-
-                    if (keepRatio) {
-                         const targetRatio = targetWidth / targetHeight;
-                         const imgRatio = img.width / img.height;
-
-                         if (imgRatio > targetRatio) {
-                             // Image is wider than target: Crop width
-                             sWidth = img.height * targetRatio;
-                             sx = (img.width - sWidth) / 2;
-                         } else {
-                             // Image is taller than target: Crop height
-                             sHeight = img.width / targetRatio;
-                             sy = (img.height - sHeight) / 2;
-                         }
-                    } else {
-                        // Square (Grid Size)
-                         const size = Math.min(img.width, img.height);
-                         sx = (img.width - size) / 2;
-                         sy = (img.height - size) / 2;
-                         sWidth = size;
-                         sHeight = size;
-                    }
-
-                    ctx.drawImage(img, sx, sy, sWidth, sHeight, 0, 0, targetWidth, targetHeight);
-                    resolve(canvas.toDataURL(file.type));
+                    processImageObject(img, targetWidth, targetHeight, keepRatio, threshold).then(resolve);
+                };
+                img.onerror = (err) => {
+                    console.error("Failed to load image for processing", err);
+                    resolve(null);
                 };
                 img.src = e.target.result;
+            };
+            reader.onerror = (err) => {
+                console.error("FileReader failed", err);
+                resolve(null);
             };
             reader.readAsDataURL(file);
         });
     }
 
-    function handleAssetUpload(file, assetName) {
-        if (!file) return;
-
-        // Determine dimensions based on asset type
+    function getAssetDimensions(assetName) {
         let w = CONFIG.GRID_SIZE;
         let h = CONFIG.GRID_SIZE;
         let keepRatio = false;
@@ -247,28 +284,80 @@ document.addEventListener('DOMContentLoaded', () => {
             h = CONFIG.PLAYER_HEIGHT;
             keepRatio = true;
         } else if (['btnLeft', 'btnRight', 'btnJump'].includes(assetName)) {
-            // Mobile buttons are squares? CSS says 80x80. Let's make them 80x80.
             w = 80;
             h = 80;
+        } else if (assetName === 'btnEdit') {
+             w = 60;
+             h = 60;
+        }
+        return { w, h, keepRatio };
+    }
+
+    function handleAssetUpload(file, assetName) {
+        if (!file) return;
+
+        const { w, h, keepRatio } = getAssetDimensions(assetName);
+        const threshold = parseInt(document.getElementById('transparency-slider').value) || 240;
+        console.log(`Uploading '${assetName}' with threshold ${threshold}`);
+
+        // Read file first to store raw data for later adjustments
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const rawDataURL = e.target.result;
+            gameState.originalAssets[assetName] = rawDataURL;
+            gameState.lastUploadedAssetKey = assetName;
+
+            // Process it
+            const img = new Image();
+            img.onload = () => {
+                processImageObject(img, w, h, keepRatio, threshold).then(base64 => {
+                    updateAssetState(assetName, base64);
+                });
+            };
+            img.src = rawDataURL;
+        };
+        reader.readAsDataURL(file);
+    }
+
+    function updateAssetState(assetName, base64) {
+        gameState.assets[assetName] = base64;
+        const img = new Image();
+        img.src = base64;
+        // Force browser to reload image? Usually redundant but safe.
+
+        assetImages[assetName] = img;
+
+        // Update mobile buttons if applicable
+        if (['btnLeft', 'btnRight', 'btnJump'].includes(assetName)) {
+            updateMobileButtonVisuals();
+        }
+        if (assetName === 'btnEdit') {
+            updateEditButtonVisuals();
         }
 
-        processImage(file, w, h, keepRatio).then(base64 => {
-            if (!base64) return;
+        // Update player preview state if player assets are uploaded
+        if (assetName === 'playerIdle') {
+            gameState.editorPlayerPreview = 'Idle';
+        } else if (assetName === 'playerJump') {
+            gameState.editorPlayerPreview = 'Jump';
+        }
 
-            gameState.assets[assetName] = base64;
+        console.log(`Asset '${assetName}' processed and cached. Length: ${base64.length}`);
+    }
 
-            // Create and cache the image object
-            const img = new Image();
-            img.src = base64;
-            assetImages[assetName] = img;
-
-            // Update mobile buttons if applicable
-            if (['btnLeft', 'btnRight', 'btnJump'].includes(assetName)) {
-                updateMobileButtonVisuals();
-            }
-
-            console.log(`Asset '${assetName}' processed and cached.`);
-        });
+    function updateEditButtonVisuals() {
+        const el = document.getElementById('btn-edit-overlay');
+        const assetKey = 'btnEdit';
+        if (gameState.assets[assetKey]) {
+            el.style.backgroundImage = `url(${gameState.assets[assetKey]})`;
+            el.style.backgroundColor = 'transparent';
+            el.style.border = 'none';
+        } else {
+            // Fallback
+            el.style.backgroundImage = 'none';
+            el.style.backgroundColor = 'rgba(255, 255, 255, 0.3)';
+            el.style.border = '2px solid rgba(255, 255, 255, 0.5)';
+        }
     }
 
     function updateMobileButtonVisuals() {
@@ -329,6 +418,15 @@ document.addEventListener('DOMContentLoaded', () => {
         // Clear existing
         container.innerHTML = '';
 
+        // Manage Mobile Controls Overlay Visibility
+        const mobileControls = document.getElementById('mobile-controls');
+        if (toolName === 'controls') {
+            mobileControls.classList.remove('hidden');
+        } else if (gameState.gameMode === 'EDIT') {
+            // In Edit mode, only show if tool is controls
+            mobileControls.classList.add('hidden');
+        }
+
         // Helper to create upload button
         const createUploadBtn = (label, assetKey) => {
              const btn = document.createElement('button');
@@ -345,7 +443,10 @@ document.addEventListener('DOMContentLoaded', () => {
              });
              container.appendChild(input);
 
-             btn.onclick = () => input.click();
+             btn.onclick = () => {
+                 input.value = null; // Reset input value to allow re-uploading the same file
+                 input.click();
+             };
              container.appendChild(btn);
         };
 
@@ -353,6 +454,7 @@ document.addEventListener('DOMContentLoaded', () => {
              createUploadBtn('Upload Left', 'btnLeft');
              createUploadBtn('Upload Right', 'btnRight');
              createUploadBtn('Upload Jump', 'btnJump');
+             createUploadBtn('Upload Edit Btn', 'btnEdit');
         } else if (toolName === 'player') {
              createUploadBtn('Upload Idle', 'playerIdle');
              createUploadBtn('Upload Jump', 'playerJump');
@@ -406,8 +508,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function draw() {
-        // Clear canvas
-        ctx.fillStyle = '#111';
+        // Clear canvas with user selected background color
+        ctx.fillStyle = gameState.level.backgroundColor || '#ffffff';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
         ctx.save();
@@ -438,6 +540,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     if (img && img.complete) {
                         ctx.drawImage(img, posX, posY, CONFIG.GRID_SIZE, CONFIG.GRID_SIZE);
+                    } else if (tileType === 'player') {
+                        // Determine which sprite to show (Idle or Jump based on last upload)
+                        const previewKey = 'player' + gameState.editorPlayerPreview; // 'playerIdle' or 'playerJump'
+                        const pImg = assetImages[previewKey] || assetImages['playerIdle']; // Fallback to Idle if Jump missing
+
+                        if (pImg && pImg.complete) {
+                             ctx.drawImage(pImg, posX, posY, CONFIG.PLAYER_WIDTH, CONFIG.PLAYER_HEIGHT);
+                        } else {
+                             // Fallback to rect if no images
+                             ctx.fillStyle = TILE_COLORS.player;
+                             ctx.fillRect(posX, posY, CONFIG.GRID_SIZE, CONFIG.GRID_SIZE);
+                        }
                     } else {
                         // Fallback to placeholder color
                         ctx.fillStyle = TILE_COLORS[tileType] || 'grey';
@@ -483,11 +597,31 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Draw HUD (Fixed on screen)
         if (gameState.gameMode === 'PLAY') {
-            ctx.font = "30px Arial";
-            ctx.fillStyle = "white";
+            // Draw Item Icon and Count (Top Right)
+            const hudX = CONFIG.CANVAS_WIDTH - 150;
+            const hudY = 20;
+
+            // Draw Icon (Coin)
+            const coinImg = assetImages['coin'];
+            if (coinImg && coinImg.complete) {
+                 ctx.drawImage(coinImg, hudX, hudY, 40, 40);
+            } else {
+                 ctx.fillStyle = 'yellow';
+                 ctx.fillRect(hudX, hudY, 40, 40);
+            }
+
+            // Draw Text
+            ctx.font = "bold 30px Arial";
             ctx.textAlign = "left";
-            const scoreText = `Coins: ${gameState.collectibles.collected} / ${gameState.collectibles.total}`;
-            ctx.fillText(scoreText, 20, 40);
+            const text = `${gameState.collectibles.collected} / ${gameState.collectibles.total}`;
+
+            // Outline for visibility on any background
+            ctx.strokeStyle = 'black';
+            ctx.lineWidth = 3;
+            ctx.strokeText(text, hudX + 50, hudY + 30);
+
+            ctx.fillStyle = "white";
+            ctx.fillText(text, hudX + 50, hudY + 30);
         }
     }
 
@@ -691,7 +825,15 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Editor-specific Drawing ---
     function drawEditorUI() {
         // Draw grid lines
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+        // Contrast check against background
+        const bgHex = gameState.level.backgroundColor || '#ffffff';
+        // Simple YIQ contrast check
+        const r = parseInt(bgHex.substr(1, 2), 16);
+        const g = parseInt(bgHex.substr(3, 2), 16);
+        const b = parseInt(bgHex.substr(5, 2), 16);
+        const yiq = ((r * 299) + (g * 587) + (b * 114)) / 1000;
+
+        ctx.strokeStyle = (yiq >= 128) ? 'rgba(0, 0, 0, 0.2)' : 'rgba(255, 255, 255, 0.2)';
         ctx.lineWidth = 1;
 
         const startX = Math.floor(gameState.camera.x / CONFIG.GRID_SIZE) * CONFIG.GRID_SIZE;
@@ -723,9 +865,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const data = {
             level: gameState.level,
             assets: gameState.assets,
+            originalAssets: gameState.originalAssets, // Save raw data too
         };
 
         const json = JSON.stringify(data);
+        saveToLocalStorage(data); // Auto-save to browser storage
+
         const blob = new Blob([json], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
 
@@ -736,7 +881,59 @@ document.addEventListener('DOMContentLoaded', () => {
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
-        console.log("Level saved.");
+        console.log("Level saved to file and localStorage.");
+    }
+
+    function saveToLocalStorage(data) {
+        try {
+            localStorage.setItem('jumpinaData', JSON.stringify(data));
+            console.log("Saved to localStorage");
+        } catch (e) {
+            console.error("Failed to save to localStorage", e);
+        }
+    }
+
+    function loadFromLocalStorage() {
+        try {
+            const json = localStorage.getItem('jumpinaData');
+            if (json) {
+                const data = JSON.parse(json);
+                applyLoadedData(data);
+                console.log("Loaded from localStorage");
+            }
+        } catch (e) {
+            console.error("Failed to load from localStorage", e);
+        }
+    }
+
+    function applyLoadedData(data) {
+        if (data.level && data.assets) {
+            gameState.level = data.level;
+            gameState.assets = data.assets;
+            if (data.originalAssets) {
+                gameState.originalAssets = data.originalAssets;
+            }
+
+            if (!gameState.level.backgroundColor) gameState.level.backgroundColor = '#ffffff';
+
+            document.getElementById('width-label').textContent = gameState.level.width;
+            document.getElementById('height-label').textContent = gameState.level.height;
+            document.getElementById('bg-color-picker').value = gameState.level.backgroundColor;
+
+            // Rebuild cache
+            Object.keys(assetImages).forEach(key => delete assetImages[key]);
+            Object.keys(gameState.assets).forEach(assetName => {
+                const base64 = gameState.assets[assetName];
+                if (base64) {
+                     const img = new Image();
+                     img.src = base64;
+                     assetImages[assetName] = img;
+                }
+            });
+
+            updateMobileButtonVisuals();
+            updateEditButtonVisuals();
+        }
     }
 
     function loadLevel(e) {
@@ -747,42 +944,55 @@ document.addEventListener('DOMContentLoaded', () => {
         reader.onload = (event) => {
             try {
                 const data = JSON.parse(event.target.result);
-                // Validate data structure
-                if (data.level && data.assets) {
-                    // Overwrite game state
-                    gameState.level = data.level;
-                    gameState.assets = data.assets;
-
-                    // Update size labels
-                    document.getElementById('width-label').textContent = gameState.level.width;
-                    document.getElementById('height-label').textContent = gameState.level.height;
-
-
-                    // Rebuild asset images cache
-                    Object.keys(assetImages).forEach(key => delete assetImages[key]); // Clear cache
-                    Object.keys(gameState.assets).forEach(assetName => {
-                        const base64 = gameState.assets[assetName];
-                        if (base64) {
-                             const img = new Image();
-                             img.src = base64;
-                             assetImages[assetName] = img;
-                        }
-                    });
-
-                    updateMobileButtonVisuals();
-
-                    console.log("Level loaded and assets are being rebuilt.");
-                } else {
-                    alert("Invalid level file format.");
-                }
+                applyLoadedData(data);
+                saveToLocalStorage(data); // Save the loaded level to storage
+                console.log("Level loaded from file.");
             } catch (error) {
                 alert("Error reading level file: " + error.message);
             }
         };
         reader.readAsText(file);
-
-        // Reset input value to allow loading the same file again
         e.target.value = '';
+    }
+
+    function resetLevel(keepAssets) {
+        // Reset Level Dimensions
+        gameState.level.width = 32;
+        gameState.level.height = 18;
+
+        // Clear Grid
+        initializeGrid(); // Resets grid to new dimensions
+
+        // Reset Player/Game logic
+        gameState.player = { x: 0, y: 0, vx: 0, vy: 0, jumps: 2, facingRight: true };
+        gameState.collectibles = { total: 0, collected: 0 };
+        gameState.exit = { x: 0, y: 0, activated: false };
+        gameState.level.backgroundColor = '#ffffff';
+
+        if (!keepAssets) {
+            // Reset Assets
+            Object.keys(gameState.assets).forEach(k => gameState.assets[k] = null);
+            gameState.originalAssets = {};
+            gameState.lastUploadedAssetKey = null;
+            Object.keys(assetImages).forEach(k => delete assetImages[k]);
+
+            updateMobileButtonVisuals();
+            updateEditButtonVisuals();
+        }
+
+        // Update UI
+        document.getElementById('width-label').textContent = gameState.level.width;
+        document.getElementById('height-label').textContent = gameState.level.height;
+        document.getElementById('bg-color-picker').value = '#ffffff';
+
+        // Persist the reset state
+        const data = {
+            level: gameState.level,
+            assets: gameState.assets,
+            originalAssets: gameState.originalAssets
+        };
+        saveToLocalStorage(data);
+        console.log("Level reset.");
     }
 
 
@@ -871,26 +1081,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Update Toolbar Visibility based on Mode ---
     function updateToolbarVisibility() {
-        // Requirement: "Při hře je vidět pouze tlačítko edit"
-        // Hide all buttons except #edit-btn
-        const allSections = document.querySelectorAll('.toolbar-section');
+        const toolbar = document.getElementById('toolbar');
+        const editOverlay = document.getElementById('btn-edit-overlay');
+
         if (gameState.gameMode === 'PLAY') {
-             // Hide all sections except the first one (which has Play/Edit)
-             // And inside the first section, hide Play button
-             allSections.forEach((section, index) => {
-                 if (index === 0) {
-                     // Keep Edit button visible, hide Play button
-                     document.getElementById('play-btn').style.display = 'none';
-                     document.getElementById('edit-btn').style.display = 'inline-block';
-                 } else {
-                     section.style.display = 'none';
-                 }
-             });
+             toolbar.style.display = 'none';
+             editOverlay.classList.remove('hidden');
         } else {
-             // Show everything
-             allSections.forEach(section => section.style.display = 'flex');
-             document.getElementById('play-btn').style.display = 'inline-block';
-             document.getElementById('edit-btn').style.display = 'inline-block';
+             toolbar.style.display = 'flex';
+             editOverlay.classList.add('hidden');
         }
     }
 
@@ -939,7 +1138,14 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('edit-btn').classList.add('active');
         document.getElementById('play-btn').classList.remove('active');
         // canvasContainer.style.overflow = 'auto'; // Always hidden now
-        mobileControls.classList.add('hidden');
+
+        // Mobile controls should be hidden by default in Edit mode,
+        // unless the 'Controls' tool is active.
+        if (gameState.activeTool === 'controls') {
+            mobileControls.classList.remove('hidden');
+        } else {
+            mobileControls.classList.add('hidden');
+        }
 
         updateToolbarVisibility();
     }
@@ -988,6 +1194,40 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
+        // Settings listeners
+        const bgColorPicker = document.getElementById('bg-color-picker');
+        bgColorPicker.addEventListener('input', (e) => {
+            gameState.level.backgroundColor = e.target.value;
+        });
+
+        const transparencySlider = document.getElementById('transparency-slider');
+        transparencySlider.addEventListener('input', (e) => {
+            const threshold = parseInt(e.target.value);
+            console.log(`Slider changed to ${threshold}. Last Key: ${gameState.lastUploadedAssetKey}`);
+            // Re-process last uploaded asset if available
+            if (gameState.lastUploadedAssetKey && gameState.originalAssets[gameState.lastUploadedAssetKey]) {
+                const assetKey = gameState.lastUploadedAssetKey;
+                const rawDataURL = gameState.originalAssets[assetKey];
+                const { w, h, keepRatio } = getAssetDimensions(assetKey);
+
+                // We need to reload the image from raw data
+                const img = new Image();
+                img.onload = () => {
+                    processImageObject(img, w, h, keepRatio, threshold).then(base64 => {
+                        updateAssetState(assetKey, base64);
+                    });
+                };
+                img.src = rawDataURL;
+            }
+        });
+
+        // Edit Overlay Listener
+        document.getElementById('btn-edit-overlay').addEventListener('click', setEditMode);
+        document.getElementById('btn-edit-overlay').addEventListener('touchstart', (e) => {
+             e.preventDefault(); // Prevent ghost click if on mobile
+             setEditMode();
+        });
+
         heightPlusBtn.addEventListener('click', () => {
             const newHeight = gameState.level.height + 1;
             document.getElementById('height-label').textContent = newHeight;
@@ -1002,14 +1242,40 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
-        // Save/Load buttons
+        // Save/Load/Reset buttons
         const saveBtn = document.getElementById('save-btn');
         const loadBtn = document.getElementById('load-btn');
         const loadLevelInput = document.getElementById('load-level-input');
+        const resetBtn = document.getElementById('reset-btn');
+        const resetModal = document.getElementById('reset-modal');
+        const resetGridBtn = document.getElementById('reset-grid-btn');
+        const resetAllBtn = document.getElementById('reset-all-btn');
+        const resetCancelBtn = document.getElementById('reset-cancel-btn');
 
         saveBtn.addEventListener('click', saveLevel);
         loadBtn.addEventListener('click', () => loadLevelInput.click());
         loadLevelInput.addEventListener('change', loadLevel);
+
+        resetBtn.addEventListener('click', () => {
+            resetModal.classList.remove('hidden');
+        });
+
+        resetGridBtn.addEventListener('click', () => {
+            resetLevel(true); // Keep assets
+            resetModal.classList.add('hidden');
+        });
+
+        resetAllBtn.addEventListener('click', () => {
+            resetLevel(false); // Reset everything
+            resetModal.classList.add('hidden');
+        });
+
+        resetCancelBtn.addEventListener('click', () => {
+            resetModal.classList.add('hidden');
+        });
+
+        // Auto-load from storage on init
+        loadFromLocalStorage();
 
 
         // Toolbar logic

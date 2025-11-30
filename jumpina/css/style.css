@@ -6,7 +6,7 @@ body, html {
     display: flex;
     justify-content: center;
     align-items: center;
-    background-color: #282c34;
+    background-color: #e0e0e0;
     font-family: sans-serif;
     overflow: hidden; /* Prevent body scroll, handle inside app-wrapper */
 }
@@ -16,10 +16,10 @@ body, html {
     height: 100%;
     max-width: 1280px;
     max-height: 100%;
-    background-color: #20232a;
+    background-color: #ffffff;
     display: flex;
     flex-direction: column;
-    box-shadow: 0 0 20px rgba(0,0,0,0.5);
+    box-shadow: 0 0 20px rgba(0,0,0,0.2);
     position: relative;
 }
 
@@ -70,7 +70,7 @@ body, html {
     flex-grow: 1; /* Take remaining space */
     position: relative;
     overflow: hidden; /* Changed from auto to hidden, we will handle camera manually */
-    background-color: #111;
+    background-color: #ddd;
     display: flex;
     justify-content: center;
     align-items: center;

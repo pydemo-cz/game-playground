@@ -760,7 +760,15 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Editor-specific Drawing ---
     function drawEditorUI() {
         // Draw grid lines
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+        // Contrast check against background
+        const bgHex = gameState.level.backgroundColor || '#ffffff';
+        // Simple YIQ contrast check
+        const r = parseInt(bgHex.substr(1, 2), 16);
+        const g = parseInt(bgHex.substr(3, 2), 16);
+        const b = parseInt(bgHex.substr(5, 2), 16);
+        const yiq = ((r * 299) + (g * 587) + (b * 114)) / 1000;
+
+        ctx.strokeStyle = (yiq >= 128) ? 'rgba(0, 0, 0, 0.2)' : 'rgba(255, 255, 255, 0.2)';
         ctx.lineWidth = 1;
 
         const startX = Math.floor(gameState.camera.x / CONFIG.GRID_SIZE) * CONFIG.GRID_SIZE;

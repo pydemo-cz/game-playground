@@ -188,7 +188,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
     // --- Asset Management ---
-    function processImage(file, targetWidth, targetHeight, keepRatio = false) {
+    function processImage(file, targetWidth, targetHeight, keepRatio = false, threshold = 240) {
         return new Promise((resolve) => {
             if (!file) {
                  resolve(null);
@@ -230,7 +230,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     ctx.drawImage(img, sx, sy, sWidth, sHeight, 0, 0, targetWidth, targetHeight);
 
                     // --- Transparency Logic ---
-                    const threshold = parseInt(document.getElementById('transparency-slider').value) || 240;
+                    console.log(`Applying transparency with threshold: ${threshold}`);
                     const imageData = ctx.getImageData(0, 0, targetWidth, targetHeight);
                     const data = imageData.data;
                     for (let i = 0; i < data.length; i += 4) {
@@ -245,9 +245,18 @@ document.addEventListener('DOMContentLoaded', () => {
                     ctx.putImageData(imageData, 0, 0);
                     // ---------------------------
 
-                    resolve(canvas.toDataURL(file.type));
+                    // Always export as PNG to preserve the alpha channel we just modified
+                    resolve(canvas.toDataURL('image/png'));
+                };
+                img.onerror = (err) => {
+                    console.error("Failed to load image for processing", err);
+                    resolve(null);
                 };
                 img.src = e.target.result;
+            };
+            reader.onerror = (err) => {
+                console.error("FileReader failed", err);
+                resolve(null);
             };
             reader.readAsDataURL(file);
         });
@@ -274,7 +283,10 @@ document.addEventListener('DOMContentLoaded', () => {
              h = 60;
         }
 
-        processImage(file, w, h, keepRatio).then(base64 => {
+        const threshold = parseInt(document.getElementById('transparency-slider').value) || 240;
+        console.log(`Uploading '${assetName}' with threshold ${threshold}`);
+
+        processImage(file, w, h, keepRatio, threshold).then(base64 => {
             if (!base64) return;
 
             gameState.assets[assetName] = base64;
@@ -282,6 +294,8 @@ document.addEventListener('DOMContentLoaded', () => {
             // Create and cache the image object
             const img = new Image();
             img.src = base64;
+            // Force browser to reload image? Usually redundant but safe.
+
             assetImages[assetName] = img;
 
             // Update mobile buttons if applicable
@@ -292,7 +306,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 updateEditButtonVisuals();
             }
 
-            console.log(`Asset '${assetName}' processed and cached.`);
+            console.log(`Asset '${assetName}' processed and cached. Length: ${base64.length}`);
         });
     }
 
@@ -385,7 +399,10 @@ document.addEventListener('DOMContentLoaded', () => {
              });
              container.appendChild(input);
 
-             btn.onclick = () => input.click();
+             btn.onclick = () => {
+                 input.value = null; // Reset input value to allow re-uploading the same file
+                 input.click();
+             };
              container.appendChild(btn);
         };
 

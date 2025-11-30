@@ -8,12 +8,12 @@ document.addEventListener('DOMContentLoaded', () => {
         GRID_SIZE: 60,
         PLAYER_WIDTH: 90, // 90px (1.5x grid size)
         PLAYER_HEIGHT: 120, // 120px (2x grid size)
-        MOVE_SPEED: 5,
-        JUMP_FORCE: 18,
-        GRAVITY: 0.8,
+        MOVE_SPEED: 300,        // Pixels per second (was 5 per frame @ 60fps)
+        JUMP_FORCE: 1080,       // Pixels per second (was 18 per frame)
+        GRAVITY: 2880,          // Pixels per second squared (was 0.8 per frame)
         CANVAS_WIDTH: 960,
         CANVAS_HEIGHT: 540,
-        CAMERA_LERP: 0.1,
+        CAMERA_LERP: 0.1,       // Factor per frame (reference 60fps)
     };
 
     // --- Game State ---
@@ -752,15 +752,15 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
 
-    function update() {
+    function update(dt) {
         // --- Editor Camera Navigation ---
         if (gameState.gameMode === 'EDIT') {
-            const CAM_SPEED = 10;
+            const CAM_SPEED = 600; // Pixels per second
             // Allow camera movement regardless of active tool
-            if (keys.left) gameState.camera.x -= CAM_SPEED;
-            if (keys.right) gameState.camera.x += CAM_SPEED;
-            if (keys.up) gameState.camera.y -= CAM_SPEED;
-            if (keys.down) gameState.camera.y += CAM_SPEED;
+            if (keys.left) gameState.camera.x -= CAM_SPEED * dt;
+            if (keys.right) gameState.camera.x += CAM_SPEED * dt;
+            if (keys.up) gameState.camera.y -= CAM_SPEED * dt;
+            if (keys.down) gameState.camera.y += CAM_SPEED * dt;
 
             // Clamp camera
             const worldWidth = gameState.level.width * CONFIG.GRID_SIZE;
@@ -783,7 +783,9 @@ document.addEventListener('DOMContentLoaded', () => {
             p.vx = CONFIG.MOVE_SPEED;
             p.facingRight = true;
         }
-        p.x += p.vx;
+
+        // Apply Horizontal Velocity (Delta Time)
+        p.x += p.vx * dt;
 
         // Clamp Horizontal Position (Prevent going off-screen)
         const worldWidth = gameState.level.width * CONFIG.GRID_SIZE;
@@ -793,8 +795,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
         // --- Vertical Movement & Gravity ---
-        p.vy += CONFIG.GRAVITY;
-        p.y += p.vy;
+        p.vy += CONFIG.GRAVITY * dt;
+        p.y += p.vy * dt;
 
         // Check falling off the map
         const worldHeight = gameState.level.height * CONFIG.GRID_SIZE;
@@ -808,7 +810,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // --- Jumping ---
         if (keys.jump && p.jumps > 0) {
-            p.vy = -CONFIG.JUMP_FORCE;
+            p.vy = -CONFIG.JUMP_FORCE; // Instant impulse
             p.jumps--;
             keys.jump = false; // Prevent holding jump
         }
@@ -818,9 +820,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const targetCamX = p.x + CONFIG.PLAYER_WIDTH / 2 - CONFIG.CANVAS_WIDTH / 2;
         const targetCamY = p.y + CONFIG.PLAYER_HEIGHT / 2 - CONFIG.CANVAS_HEIGHT / 2;
 
-        // Lerp
-        gameState.camera.x += (targetCamX - gameState.camera.x) * CONFIG.CAMERA_LERP;
-        gameState.camera.y += (targetCamY - gameState.camera.y) * CONFIG.CAMERA_LERP;
+        // Time-corrected Lerp
+        // factor = 1 - (1 - rate)^(dt * 60)
+        // This ensures the decay is consistent regardless of frame rate
+        const lerpFactor = 1 - Math.pow(1 - CONFIG.CAMERA_LERP, dt * 60);
+
+        gameState.camera.x += (targetCamX - gameState.camera.x) * lerpFactor;
+        gameState.camera.y += (targetCamY - gameState.camera.y) * lerpFactor;
 
         // Clamp camera to world bounds
         // worldWidth is already defined above
@@ -834,8 +840,15 @@ document.addEventListener('DOMContentLoaded', () => {
         gameState.camera.y = Math.max(0, Math.min(gameState.camera.y, worldHeight - CONFIG.CANVAS_HEIGHT));
     }
 
-    function gameLoop() {
-        update();
+    let lastTime = 0;
+    function gameLoop(timestamp) {
+        if (!lastTime) lastTime = timestamp;
+        // Calculate Delta Time in seconds
+        // Cap at 0.1s (100ms) to prevent spiral of death on lag/tab switch
+        const deltaTime = Math.min((timestamp - lastTime) / 1000, 0.1);
+        lastTime = timestamp;
+
+        update(deltaTime);
         // resizeCanvas(); // No longer needed
         draw();
         requestAnimationFrame(gameLoop);

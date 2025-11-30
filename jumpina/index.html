@@ -34,6 +34,7 @@
                 <button id="save-btn">Save</button>
                 <button id="load-btn">Load</button>
                 <input type="file" id="load-level-input" style="display: none;" accept=".json">
+                <button id="reset-btn" style="background-color: #ff6b6b; color: white;">Reset</button>
             </div>
             <div class="toolbar-section">
                 <span>Size:</span>
@@ -83,5 +84,18 @@
     </div>
 
     <script src="js/main.js"></script>
+
+    <!-- Reset Confirmation Modal -->
+    <div id="reset-modal" class="modal hidden">
+        <div class="modal-content">
+            <h3>Reset Level?</h3>
+            <p>What do you want to reset?</p>
+            <div class="modal-actions">
+                <button id="reset-grid-btn">Level Only (Keep Assets)</button>
+                <button id="reset-all-btn" style="background-color: #ff6b6b;">Everything (Level + Assets)</button>
+                <button id="reset-cancel-btn" style="background-color: #aaa;">Cancel</button>
+            </div>
+        </div>
+    </div>
 </body>
 </html>

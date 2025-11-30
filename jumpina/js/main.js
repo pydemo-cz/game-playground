@@ -352,21 +352,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function updateEditButtonVisuals() {
-        const el = document.getElementById('btn-edit-overlay');
-        const assetKey = 'btnEdit';
-        if (gameState.assets[assetKey]) {
-            el.style.backgroundImage = `url(${gameState.assets[assetKey]})`;
-            el.style.backgroundColor = 'transparent';
-            el.style.border = 'none';
-        } else {
-            // Fallback
-            el.style.backgroundImage = 'none';
-            el.style.backgroundColor = 'rgba(255, 255, 255, 0.3)';
-            el.style.border = '2px solid rgba(255, 255, 255, 0.5)';
-        }
-    }
-
     function updateMobileButtonVisuals() {
         const updateBtn = (id, assetKey) => {
             const el = document.getElementById(id);
@@ -859,9 +844,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const data = {
             level: gameState.level,
             assets: gameState.assets,
+            originalAssets: gameState.originalAssets, // Save raw data too
         };
 
         const json = JSON.stringify(data);
+        saveToLocalStorage(data); // Auto-save to browser storage
+
         const blob = new Blob([json], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
 
@@ -872,7 +860,59 @@ document.addEventListener('DOMContentLoaded', () => {
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
-        console.log("Level saved.");
+        console.log("Level saved to file and localStorage.");
+    }
+
+    function saveToLocalStorage(data) {
+        try {
+            localStorage.setItem('jumpinaData', JSON.stringify(data));
+            console.log("Saved to localStorage");
+        } catch (e) {
+            console.error("Failed to save to localStorage", e);
+        }
+    }
+
+    function loadFromLocalStorage() {
+        try {
+            const json = localStorage.getItem('jumpinaData');
+            if (json) {
+                const data = JSON.parse(json);
+                applyLoadedData(data);
+                console.log("Loaded from localStorage");
+            }
+        } catch (e) {
+            console.error("Failed to load from localStorage", e);
+        }
+    }
+
+    function applyLoadedData(data) {
+        if (data.level && data.assets) {
+            gameState.level = data.level;
+            gameState.assets = data.assets;
+            if (data.originalAssets) {
+                gameState.originalAssets = data.originalAssets;
+            }
+
+            if (!gameState.level.backgroundColor) gameState.level.backgroundColor = '#ffffff';
+
+            document.getElementById('width-label').textContent = gameState.level.width;
+            document.getElementById('height-label').textContent = gameState.level.height;
+            document.getElementById('bg-color-picker').value = gameState.level.backgroundColor;
+
+            // Rebuild cache
+            Object.keys(assetImages).forEach(key => delete assetImages[key]);
+            Object.keys(gameState.assets).forEach(assetName => {
+                const base64 = gameState.assets[assetName];
+                if (base64) {
+                     const img = new Image();
+                     img.src = base64;
+                     assetImages[assetName] = img;
+                }
+            });
+
+            updateMobileButtonVisuals();
+            updateEditButtonVisuals();
+        }
     }
 
     function loadLevel(e) {
@@ -883,46 +923,55 @@ document.addEventListener('DOMContentLoaded', () => {
         reader.onload = (event) => {
             try {
                 const data = JSON.parse(event.target.result);
-                // Validate data structure
-                if (data.level && data.assets) {
-                    // Overwrite game state
-                    gameState.level = data.level;
-                    gameState.assets = data.assets;
-
-                    // Ensure defaults for new properties if missing
-                    if (!gameState.level.backgroundColor) gameState.level.backgroundColor = '#ffffff';
-
-                    // Update UI
-                    document.getElementById('width-label').textContent = gameState.level.width;
-                    document.getElementById('height-label').textContent = gameState.level.height;
-                    document.getElementById('bg-color-picker').value = gameState.level.backgroundColor;
-
-
-                    // Rebuild asset images cache
-                    Object.keys(assetImages).forEach(key => delete assetImages[key]); // Clear cache
-                    Object.keys(gameState.assets).forEach(assetName => {
-                        const base64 = gameState.assets[assetName];
-                        if (base64) {
-                             const img = new Image();
-                             img.src = base64;
-                             assetImages[assetName] = img;
-                        }
-                    });
-
-                    updateMobileButtonVisuals();
-
-                    console.log("Level loaded and assets are being rebuilt.");
-                } else {
-                    alert("Invalid level file format.");
-                }
+                applyLoadedData(data);
+                saveToLocalStorage(data); // Save the loaded level to storage
+                console.log("Level loaded from file.");
             } catch (error) {
                 alert("Error reading level file: " + error.message);
             }
         };
         reader.readAsText(file);
-
-        // Reset input value to allow loading the same file again
         e.target.value = '';
+    }
+
+    function resetLevel(keepAssets) {
+        // Reset Level Dimensions
+        gameState.level.width = 32;
+        gameState.level.height = 18;
+
+        // Clear Grid
+        initializeGrid(); // Resets grid to new dimensions
+
+        // Reset Player/Game logic
+        gameState.player = { x: 0, y: 0, vx: 0, vy: 0, jumps: 2, facingRight: true };
+        gameState.collectibles = { total: 0, collected: 0 };
+        gameState.exit = { x: 0, y: 0, activated: false };
+        gameState.level.backgroundColor = '#ffffff';
+
+        if (!keepAssets) {
+            // Reset Assets
+            Object.keys(gameState.assets).forEach(k => gameState.assets[k] = null);
+            gameState.originalAssets = {};
+            gameState.lastUploadedAssetKey = null;
+            Object.keys(assetImages).forEach(k => delete assetImages[k]);
+
+            updateMobileButtonVisuals();
+            updateEditButtonVisuals();
+        }
+
+        // Update UI
+        document.getElementById('width-label').textContent = gameState.level.width;
+        document.getElementById('height-label').textContent = gameState.level.height;
+        document.getElementById('bg-color-picker').value = '#ffffff';
+
+        // Persist the reset state
+        const data = {
+            level: gameState.level,
+            assets: gameState.assets,
+            originalAssets: gameState.originalAssets
+        };
+        saveToLocalStorage(data);
+        console.log("Level reset.");
     }
 
 
@@ -1165,14 +1214,40 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
-        // Save/Load buttons
+        // Save/Load/Reset buttons
         const saveBtn = document.getElementById('save-btn');
         const loadBtn = document.getElementById('load-btn');
         const loadLevelInput = document.getElementById('load-level-input');
+        const resetBtn = document.getElementById('reset-btn');
+        const resetModal = document.getElementById('reset-modal');
+        const resetGridBtn = document.getElementById('reset-grid-btn');
+        const resetAllBtn = document.getElementById('reset-all-btn');
+        const resetCancelBtn = document.getElementById('reset-cancel-btn');
 
         saveBtn.addEventListener('click', saveLevel);
         loadBtn.addEventListener('click', () => loadLevelInput.click());
         loadLevelInput.addEventListener('change', loadLevel);
+
+        resetBtn.addEventListener('click', () => {
+            resetModal.classList.remove('hidden');
+        });
+
+        resetGridBtn.addEventListener('click', () => {
+            resetLevel(true); // Keep assets
+            resetModal.classList.add('hidden');
+        });
+
+        resetAllBtn.addEventListener('click', () => {
+            resetLevel(false); // Reset everything
+            resetModal.classList.add('hidden');
+        });
+
+        resetCancelBtn.addEventListener('click', () => {
+            resetModal.classList.add('hidden');
+        });
+
+        // Auto-load from storage on init
+        loadFromLocalStorage();
 
 
         // Toolbar logic

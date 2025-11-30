@@ -8,12 +8,12 @@ document.addEventListener('DOMContentLoaded', () => {
         GRID_SIZE: 60,
         PLAYER_WIDTH: 90, // 90px (1.5x grid size)
         PLAYER_HEIGHT: 120, // 120px (2x grid size)
-        MOVE_SPEED: 5,
-        JUMP_FORCE: 18,
-        GRAVITY: 0.8,
+        MOVE_SPEED: 300,        // Pixels per second (was 5 per frame @ 60fps)
+        JUMP_FORCE: 1080,       // Pixels per second (was 18 per frame)
+        GRAVITY: 2880,          // Pixels per second squared (was 0.8 per frame)
         CANVAS_WIDTH: 960,
         CANVAS_HEIGHT: 540,
-        CAMERA_LERP: 0.1,
+        CAMERA_LERP: 0.1,       // Factor per frame (reference 60fps)
     };
 
     // --- Game State ---
@@ -36,6 +36,7 @@ document.addEventListener('DOMContentLoaded', () => {
             width: 32, // Default width
             height: 18, // Default height
             grid: [],
+            backgroundColor: '#ffffff', // Default background color
         },
         collectibles: {
             total: 0,
@@ -58,7 +59,12 @@ document.addEventListener('DOMContentLoaded', () => {
             btnLeft: null,
             btnRight: null,
             btnJump: null,
+            btnEdit: null,
         },
+        originalAssets: {}, // Store raw Data URLs for reprocessing
+        lastUploadedAssetKey: null,
+        editorPlayerPreview: 'Idle', // 'Idle' or 'Jump'
+        playSessionStartGrid: null, // Backup of grid at start of play session
     };
 
     // --- DOM Elements ---
@@ -186,7 +192,64 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
     // --- Asset Management ---
-    function processImage(file, targetWidth, targetHeight, keepRatio = false) {
+
+    // Core logic to process an Image object and return a Data URL
+    function processImageObject(img, targetWidth, targetHeight, keepRatio, threshold) {
+        return new Promise((resolve) => {
+            const canvas = document.createElement('canvas');
+            canvas.width = targetWidth;
+            canvas.height = targetHeight;
+            const ctx = canvas.getContext('2d');
+
+            let sx = 0, sy = 0, sWidth = img.width, sHeight = img.height;
+
+            if (keepRatio) {
+                 const targetRatio = targetWidth / targetHeight;
+                 const imgRatio = img.width / img.height;
+
+                 if (imgRatio > targetRatio) {
+                     // Image is wider than target: Crop width
+                     sWidth = img.height * targetRatio;
+                     sx = (img.width - sWidth) / 2;
+                 } else {
+                     // Image is taller than target: Crop height
+                     sHeight = img.width / targetRatio;
+                     sy = (img.height - sHeight) / 2;
+                 }
+            } else {
+                // Square (Grid Size)
+                 const size = Math.min(img.width, img.height);
+                 sx = (img.width - size) / 2;
+                 sy = (img.height - size) / 2;
+                 sWidth = size;
+                 sHeight = size;
+            }
+
+            ctx.drawImage(img, sx, sy, sWidth, sHeight, 0, 0, targetWidth, targetHeight);
+
+            // --- Transparency Logic ---
+            console.log(`Applying transparency with threshold: ${threshold}`);
+            const imageData = ctx.getImageData(0, 0, targetWidth, targetHeight);
+            const data = imageData.data;
+            for (let i = 0; i < data.length; i += 4) {
+                const r = data[i];
+                const g = data[i + 1];
+                const b = data[i + 2];
+                // If pixel is lighter than threshold (white/light grey), make it transparent
+                if (r > threshold && g > threshold && b > threshold) {
+                    data[i + 3] = 0; // Alpha = 0
+                }
+            }
+            ctx.putImageData(imageData, 0, 0);
+            // ---------------------------
+
+            // Always export as PNG to preserve the alpha channel we just modified
+            resolve(canvas.toDataURL('image/png'));
+        });
+    }
+
+    // Original helper wrapping FileReader + processImageObject
+    function processImage(file, targetWidth, targetHeight, keepRatio = false, threshold = 240) {
         return new Promise((resolve) => {
             if (!file) {
                  resolve(null);
@@ -196,48 +259,23 @@ document.addEventListener('DOMContentLoaded', () => {
             reader.onload = (e) => {
                 const img = new Image();
                 img.onload = () => {
-                    const canvas = document.createElement('canvas');
-                    canvas.width = targetWidth;
-                    canvas.height = targetHeight;
-                    const ctx = canvas.getContext('2d');
-
-                    let sx = 0, sy = 0, sWidth = img.width, sHeight = img.height;
-
-                    if (keepRatio) {
-                         const targetRatio = targetWidth / targetHeight;
-                         const imgRatio = img.width / img.height;
-
-                         if (imgRatio > targetRatio) {
-                             // Image is wider than target: Crop width
-                             sWidth = img.height * targetRatio;
-                             sx = (img.width - sWidth) / 2;
-                         } else {
-                             // Image is taller than target: Crop height
-                             sHeight = img.width / targetRatio;
-                             sy = (img.height - sHeight) / 2;
-                         }
-                    } else {
-                        // Square (Grid Size)
-                         const size = Math.min(img.width, img.height);
-                         sx = (img.width - size) / 2;
-                         sy = (img.height - size) / 2;
-                         sWidth = size;
-                         sHeight = size;
-                    }
-
-                    ctx.drawImage(img, sx, sy, sWidth, sHeight, 0, 0, targetWidth, targetHeight);
-                    resolve(canvas.toDataURL(file.type));
+                    processImageObject(img, targetWidth, targetHeight, keepRatio, threshold).then(resolve);
+                };
+                img.onerror = (err) => {
+                    console.error("Failed to load image for processing", err);
+                    resolve(null);
                 };
                 img.src = e.target.result;
+            };
+            reader.onerror = (err) => {
+                console.error("FileReader failed", err);
+                resolve(null);
             };
             reader.readAsDataURL(file);
         });
     }
 
-    function handleAssetUpload(file, assetName) {
-        if (!file) return;
-
-        // Determine dimensions based on asset type
+    function getAssetDimensions(assetName) {
         let w = CONFIG.GRID_SIZE;
         let h = CONFIG.GRID_SIZE;
         let keepRatio = false;
@@ -247,28 +285,80 @@ document.addEventListener('DOMContentLoaded', () => {
             h = CONFIG.PLAYER_HEIGHT;
             keepRatio = true;
         } else if (['btnLeft', 'btnRight', 'btnJump'].includes(assetName)) {
-            // Mobile buttons are squares? CSS says 80x80. Let's make them 80x80.
             w = 80;
             h = 80;
+        } else if (assetName === 'btnEdit') {
+             w = 60;
+             h = 60;
+        }
+        return { w, h, keepRatio };
+    }
+
+    function handleAssetUpload(file, assetName) {
+        if (!file) return;
+
+        const { w, h, keepRatio } = getAssetDimensions(assetName);
+        const threshold = parseInt(document.getElementById('transparency-slider').value) || 240;
+        console.log(`Uploading '${assetName}' with threshold ${threshold}`);
+
+        // Read file first to store raw data for later adjustments
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const rawDataURL = e.target.result;
+            gameState.originalAssets[assetName] = rawDataURL;
+            gameState.lastUploadedAssetKey = assetName;
+
+            // Process it
+            const img = new Image();
+            img.onload = () => {
+                processImageObject(img, w, h, keepRatio, threshold).then(base64 => {
+                    updateAssetState(assetName, base64);
+                });
+            };
+            img.src = rawDataURL;
+        };
+        reader.readAsDataURL(file);
+    }
+
+    function updateAssetState(assetName, base64) {
+        gameState.assets[assetName] = base64;
+        const img = new Image();
+        img.src = base64;
+        // Force browser to reload image? Usually redundant but safe.
+
+        assetImages[assetName] = img;
+
+        // Update mobile buttons if applicable
+        if (['btnLeft', 'btnRight', 'btnJump'].includes(assetName)) {
+            updateMobileButtonVisuals();
+        }
+        if (assetName === 'btnEdit') {
+            updateEditButtonVisuals();
         }
 
-        processImage(file, w, h, keepRatio).then(base64 => {
-            if (!base64) return;
+        // Update player preview state if player assets are uploaded
+        if (assetName === 'playerIdle') {
+            gameState.editorPlayerPreview = 'Idle';
+        } else if (assetName === 'playerJump') {
+            gameState.editorPlayerPreview = 'Jump';
+        }
 
-            gameState.assets[assetName] = base64;
+        console.log(`Asset '${assetName}' processed and cached. Length: ${base64.length}`);
+    }
 
-            // Create and cache the image object
-            const img = new Image();
-            img.src = base64;
-            assetImages[assetName] = img;
-
-            // Update mobile buttons if applicable
-            if (['btnLeft', 'btnRight', 'btnJump'].includes(assetName)) {
-                updateMobileButtonVisuals();
-            }
-
-            console.log(`Asset '${assetName}' processed and cached.`);
-        });
+    function updateEditButtonVisuals() {
+        const el = document.getElementById('btn-edit-overlay');
+        const assetKey = 'btnEdit';
+        if (gameState.assets[assetKey]) {
+            el.style.backgroundImage = `url(${gameState.assets[assetKey]})`;
+            el.style.backgroundColor = 'transparent';
+            el.style.border = 'none';
+        } else {
+            // Fallback
+            el.style.backgroundImage = 'none';
+            el.style.backgroundColor = 'rgba(255, 255, 255, 0.3)';
+            el.style.border = '2px solid rgba(255, 255, 255, 0.5)';
+        }
     }
 
     function updateMobileButtonVisuals() {
@@ -329,6 +419,19 @@ document.addEventListener('DOMContentLoaded', () => {
         // Clear existing
         container.innerHTML = '';
 
+        // Manage Mobile Controls Overlay Visibility
+        const mobileControls = document.getElementById('mobile-controls');
+        const editOverlay = document.getElementById('btn-edit-overlay');
+
+        if (toolName === 'controls') {
+            mobileControls.classList.remove('hidden');
+            editOverlay.classList.remove('hidden');
+        } else if (gameState.gameMode === 'EDIT') {
+            // In Edit mode, only show if tool is controls
+            mobileControls.classList.add('hidden');
+            editOverlay.classList.add('hidden');
+        }
+
         // Helper to create upload button
         const createUploadBtn = (label, assetKey) => {
              const btn = document.createElement('button');
@@ -345,7 +448,10 @@ document.addEventListener('DOMContentLoaded', () => {
              });
              container.appendChild(input);
 
-             btn.onclick = () => input.click();
+             btn.onclick = () => {
+                 input.value = null; // Reset input value to allow re-uploading the same file
+                 input.click();
+             };
              container.appendChild(btn);
         };
 
@@ -353,6 +459,7 @@ document.addEventListener('DOMContentLoaded', () => {
              createUploadBtn('Upload Left', 'btnLeft');
              createUploadBtn('Upload Right', 'btnRight');
              createUploadBtn('Upload Jump', 'btnJump');
+             createUploadBtn('Upload Edit Btn', 'btnEdit');
         } else if (toolName === 'player') {
              createUploadBtn('Upload Idle', 'playerIdle');
              createUploadBtn('Upload Jump', 'playerJump');
@@ -406,8 +513,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function draw() {
-        // Clear canvas
-        ctx.fillStyle = '#111';
+        // Clear canvas with user selected background color
+        ctx.fillStyle = gameState.level.backgroundColor || '#ffffff';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
         ctx.save();
@@ -438,6 +545,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     if (img && img.complete) {
                         ctx.drawImage(img, posX, posY, CONFIG.GRID_SIZE, CONFIG.GRID_SIZE);
+                    } else if (tileType === 'player') {
+                        // Determine which sprite to show (Idle or Jump based on last upload)
+                        const previewKey = 'player' + gameState.editorPlayerPreview; // 'playerIdle' or 'playerJump'
+                        const pImg = assetImages[previewKey] || assetImages['playerIdle']; // Fallback to Idle if Jump missing
+
+                        if (pImg && pImg.complete) {
+                             ctx.drawImage(pImg, posX, posY, CONFIG.PLAYER_WIDTH, CONFIG.PLAYER_HEIGHT);
+                        } else {
+                             // Fallback to rect if no images
+                             ctx.fillStyle = TILE_COLORS.player;
+                             ctx.fillRect(posX, posY, CONFIG.GRID_SIZE, CONFIG.GRID_SIZE);
+                        }
                     } else {
                         // Fallback to placeholder color
                         ctx.fillStyle = TILE_COLORS[tileType] || 'grey';
@@ -483,11 +602,31 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Draw HUD (Fixed on screen)
         if (gameState.gameMode === 'PLAY') {
-            ctx.font = "30px Arial";
-            ctx.fillStyle = "white";
+            // Draw Item Icon and Count (Top Right)
+            const hudX = CONFIG.CANVAS_WIDTH - 150;
+            const hudY = 20;
+
+            // Draw Icon (Coin)
+            const coinImg = assetImages['coin'];
+            if (coinImg && coinImg.complete) {
+                 ctx.drawImage(coinImg, hudX, hudY, 40, 40);
+            } else {
+                 ctx.fillStyle = 'yellow';
+                 ctx.fillRect(hudX, hudY, 40, 40);
+            }
+
+            // Draw Text
+            ctx.font = "bold 30px Arial";
             ctx.textAlign = "left";
-            const scoreText = `Coins: ${gameState.collectibles.collected} / ${gameState.collectibles.total}`;
-            ctx.fillText(scoreText, 20, 40);
+            const text = `${gameState.collectibles.collected} / ${gameState.collectibles.total}`;
+
+            // Outline for visibility on any background
+            ctx.strokeStyle = 'black';
+            ctx.lineWidth = 3;
+            ctx.strokeText(text, hudX + 50, hudY + 30);
+
+            ctx.fillStyle = "white";
+            ctx.fillText(text, hudX + 50, hudY + 30);
         }
     }
 
@@ -580,17 +719,31 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function restartLevel() {
-         // Find player start again
+         // Restore grid if we have a backup (reverts collected coins etc.)
+         if (gameState.playSessionStartGrid) {
+             gameState.level.grid = JSON.parse(JSON.stringify(gameState.playSessionStartGrid));
+         }
+
+         // Reset collectibles counters
+         gameState.collectibles.collected = 0;
+         gameState.collectibles.total = 0;
+
+         // Find player start and recount totals
          let playerStart = { x: 100, y: 100 };
          for (let y = 0; y < gameState.level.height; y++) {
             for (let x = 0; x < gameState.level.width; x++) {
-                if (gameState.level.grid[y][x] === 'player') {
+                const tile = gameState.level.grid[y][x];
+                if (tile === 'player') {
                     playerStart.x = x * CONFIG.GRID_SIZE;
                     playerStart.y = y * CONFIG.GRID_SIZE;
-                    break;
+                } else if (tile === 'coin') {
+                    gameState.collectibles.total++;
                 }
             }
          }
+
+         gameState.exit.activated = false;
+
          gameState.player.x = playerStart.x;
          gameState.player.y = playerStart.y;
          gameState.player.vx = 0;
@@ -599,15 +752,15 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
 
-    function update() {
+    function update(dt) {
         // --- Editor Camera Navigation ---
         if (gameState.gameMode === 'EDIT') {
-            const CAM_SPEED = 10;
+            const CAM_SPEED = 600; // Pixels per second
             // Allow camera movement regardless of active tool
-            if (keys.left) gameState.camera.x -= CAM_SPEED;
-            if (keys.right) gameState.camera.x += CAM_SPEED;
-            if (keys.up) gameState.camera.y -= CAM_SPEED;
-            if (keys.down) gameState.camera.y += CAM_SPEED;
+            if (keys.left) gameState.camera.x -= CAM_SPEED * dt;
+            if (keys.right) gameState.camera.x += CAM_SPEED * dt;
+            if (keys.up) gameState.camera.y -= CAM_SPEED * dt;
+            if (keys.down) gameState.camera.y += CAM_SPEED * dt;
 
             // Clamp camera
             const worldWidth = gameState.level.width * CONFIG.GRID_SIZE;
@@ -630,7 +783,9 @@ document.addEventListener('DOMContentLoaded', () => {
             p.vx = CONFIG.MOVE_SPEED;
             p.facingRight = true;
         }
-        p.x += p.vx;
+
+        // Apply Horizontal Velocity (Delta Time)
+        p.x += p.vx * dt;
 
         // Clamp Horizontal Position (Prevent going off-screen)
         const worldWidth = gameState.level.width * CONFIG.GRID_SIZE;
@@ -640,8 +795,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
         // --- Vertical Movement & Gravity ---
-        p.vy += CONFIG.GRAVITY;
-        p.y += p.vy;
+        p.vy += CONFIG.GRAVITY * dt;
+        p.y += p.vy * dt;
 
         // Check falling off the map
         const worldHeight = gameState.level.height * CONFIG.GRID_SIZE;
@@ -655,7 +810,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // --- Jumping ---
         if (keys.jump && p.jumps > 0) {
-            p.vy = -CONFIG.JUMP_FORCE;
+            p.vy = -CONFIG.JUMP_FORCE; // Instant impulse
             p.jumps--;
             keys.jump = false; // Prevent holding jump
         }
@@ -665,9 +820,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const targetCamX = p.x + CONFIG.PLAYER_WIDTH / 2 - CONFIG.CANVAS_WIDTH / 2;
         const targetCamY = p.y + CONFIG.PLAYER_HEIGHT / 2 - CONFIG.CANVAS_HEIGHT / 2;
 
-        // Lerp
-        gameState.camera.x += (targetCamX - gameState.camera.x) * CONFIG.CAMERA_LERP;
-        gameState.camera.y += (targetCamY - gameState.camera.y) * CONFIG.CAMERA_LERP;
+        // Time-corrected Lerp
+        // factor = 1 - (1 - rate)^(dt * 60)
+        // This ensures the decay is consistent regardless of frame rate
+        const lerpFactor = 1 - Math.pow(1 - CONFIG.CAMERA_LERP, dt * 60);
+
+        gameState.camera.x += (targetCamX - gameState.camera.x) * lerpFactor;
+        gameState.camera.y += (targetCamY - gameState.camera.y) * lerpFactor;
 
         // Clamp camera to world bounds
         // worldWidth is already defined above
@@ -681,8 +840,15 @@ document.addEventListener('DOMContentLoaded', () => {
         gameState.camera.y = Math.max(0, Math.min(gameState.camera.y, worldHeight - CONFIG.CANVAS_HEIGHT));
     }
 
-    function gameLoop() {
-        update();
+    let lastTime = 0;
+    function gameLoop(timestamp) {
+        if (!lastTime) lastTime = timestamp;
+        // Calculate Delta Time in seconds
+        // Cap at 0.1s (100ms) to prevent spiral of death on lag/tab switch
+        const deltaTime = Math.min((timestamp - lastTime) / 1000, 0.1);
+        lastTime = timestamp;
+
+        update(deltaTime);
         // resizeCanvas(); // No longer needed
         draw();
         requestAnimationFrame(gameLoop);
@@ -691,7 +857,15 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Editor-specific Drawing ---
     function drawEditorUI() {
         // Draw grid lines
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+        // Contrast check against background
+        const bgHex = gameState.level.backgroundColor || '#ffffff';
+        // Simple YIQ contrast check
+        const r = parseInt(bgHex.substr(1, 2), 16);
+        const g = parseInt(bgHex.substr(3, 2), 16);
+        const b = parseInt(bgHex.substr(5, 2), 16);
+        const yiq = ((r * 299) + (g * 587) + (b * 114)) / 1000;
+
+        ctx.strokeStyle = (yiq >= 128) ? 'rgba(0, 0, 0, 0.2)' : 'rgba(255, 255, 255, 0.2)';
         ctx.lineWidth = 1;
 
         const startX = Math.floor(gameState.camera.x / CONFIG.GRID_SIZE) * CONFIG.GRID_SIZE;
@@ -723,9 +897,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const data = {
             level: gameState.level,
             assets: gameState.assets,
+            originalAssets: gameState.originalAssets, // Save raw data too
         };
 
         const json = JSON.stringify(data);
+        saveToLocalStorage(data); // Auto-save to browser storage
+
         const blob = new Blob([json], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
 
@@ -736,7 +913,77 @@ document.addEventListener('DOMContentLoaded', () => {
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
-        console.log("Level saved.");
+        console.log("Level saved to file and localStorage.");
+    }
+
+    function saveToLocalStorage(data) {
+        try {
+            localStorage.setItem('jumpinaData', JSON.stringify(data));
+            console.log("Saved to localStorage");
+        } catch (e) {
+            console.error("Failed to save to localStorage", e);
+        }
+    }
+
+    function loadFromLocalStorage() {
+        try {
+            const json = localStorage.getItem('jumpinaData');
+            if (json) {
+                const data = JSON.parse(json);
+                applyLoadedData(data);
+                console.log("Loaded from localStorage");
+                return true;
+            }
+        } catch (e) {
+            console.error("Failed to load from localStorage", e);
+        }
+        return false;
+    }
+
+    function loadDefaultLevel() {
+        fetch('default_level.json')
+            .then(response => {
+                if (!response.ok) throw new Error("Default level not found");
+                return response.json();
+            })
+            .then(data => {
+                console.log("Loaded default level from file.");
+                applyLoadedData(data);
+                saveToLocalStorage(data); // Save so it persists
+            })
+            .catch(err => {
+                console.log("No default level found or load failed, using empty grid.", err);
+            });
+    }
+
+    function applyLoadedData(data) {
+        if (data.level && data.assets) {
+            gameState.level = data.level;
+            gameState.assets = data.assets;
+            if (data.originalAssets) {
+                gameState.originalAssets = data.originalAssets;
+            }
+
+            if (!gameState.level.backgroundColor) gameState.level.backgroundColor = '#ffffff';
+
+            document.getElementById('width-label').textContent = gameState.level.width;
+            document.getElementById('height-label').textContent = gameState.level.height;
+            document.getElementById('bg-color-picker').value = gameState.level.backgroundColor;
+
+            // Rebuild cache
+            Object.keys(assetImages).forEach(key => delete assetImages[key]);
+            Object.keys(gameState.assets).forEach(assetName => {
+                const base64 = gameState.assets[assetName];
+                if (base64) {
+                     const img = new Image();
+                     img.src = base64;
+                     assetImages[assetName] = img;
+                }
+            });
+
+            updateMobileButtonVisuals();
+            updateEditButtonVisuals();
+        }
     }
 
     function loadLevel(e) {
@@ -747,42 +994,55 @@ document.addEventListener('DOMContentLoaded', () => {
         reader.onload = (event) => {
             try {
                 const data = JSON.parse(event.target.result);
-                // Validate data structure
-                if (data.level && data.assets) {
-                    // Overwrite game state
-                    gameState.level = data.level;
-                    gameState.assets = data.assets;
-
-                    // Update size labels
-                    document.getElementById('width-label').textContent = gameState.level.width;
-                    document.getElementById('height-label').textContent = gameState.level.height;
-
-
-                    // Rebuild asset images cache
-                    Object.keys(assetImages).forEach(key => delete assetImages[key]); // Clear cache
-                    Object.keys(gameState.assets).forEach(assetName => {
-                        const base64 = gameState.assets[assetName];
-                        if (base64) {
-                             const img = new Image();
-                             img.src = base64;
-                             assetImages[assetName] = img;
-                        }
-                    });
-
-                    updateMobileButtonVisuals();
-
-                    console.log("Level loaded and assets are being rebuilt.");
-                } else {
-                    alert("Invalid level file format.");
-                }
+                applyLoadedData(data);
+                saveToLocalStorage(data); // Save the loaded level to storage
+                console.log("Level loaded from file.");
             } catch (error) {
                 alert("Error reading level file: " + error.message);
             }
         };
         reader.readAsText(file);
-
-        // Reset input value to allow loading the same file again
         e.target.value = '';
+    }
+
+    function resetLevel(keepAssets) {
+        // Reset Level Dimensions
+        gameState.level.width = 32;
+        gameState.level.height = 18;
+
+        // Clear Grid
+        initializeGrid(); // Resets grid to new dimensions
+
+        // Reset Player/Game logic
+        gameState.player = { x: 0, y: 0, vx: 0, vy: 0, jumps: 2, facingRight: true };
+        gameState.collectibles = { total: 0, collected: 0 };
+        gameState.exit = { x: 0, y: 0, activated: false };
+        gameState.level.backgroundColor = '#ffffff';
+
+        if (!keepAssets) {
+            // Reset Assets
+            Object.keys(gameState.assets).forEach(k => gameState.assets[k] = null);
+            gameState.originalAssets = {};
+            gameState.lastUploadedAssetKey = null;
+            Object.keys(assetImages).forEach(k => delete assetImages[k]);
+
+            updateMobileButtonVisuals();
+            updateEditButtonVisuals();
+        }
+
+        // Update UI
+        document.getElementById('width-label').textContent = gameState.level.width;
+        document.getElementById('height-label').textContent = gameState.level.height;
+        document.getElementById('bg-color-picker').value = '#ffffff';
+
+        // Persist the reset state
+        const data = {
+            level: gameState.level,
+            assets: gameState.assets,
+            originalAssets: gameState.originalAssets
+        };
+        saveToLocalStorage(data);
+        console.log("Level reset.");
     }
 
 
@@ -871,30 +1131,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Update Toolbar Visibility based on Mode ---
     function updateToolbarVisibility() {
-        // Requirement: "Při hře je vidět pouze tlačítko edit"
-        // Hide all buttons except #edit-btn
-        const allSections = document.querySelectorAll('.toolbar-section');
+        const toolbar = document.getElementById('toolbar');
+        const editOverlay = document.getElementById('btn-edit-overlay');
+
         if (gameState.gameMode === 'PLAY') {
-             // Hide all sections except the first one (which has Play/Edit)
-             // And inside the first section, hide Play button
-             allSections.forEach((section, index) => {
-                 if (index === 0) {
-                     // Keep Edit button visible, hide Play button
-                     document.getElementById('play-btn').style.display = 'none';
-                     document.getElementById('edit-btn').style.display = 'inline-block';
-                 } else {
-                     section.style.display = 'none';
-                 }
-             });
+             toolbar.style.display = 'none';
+             editOverlay.classList.remove('hidden');
         } else {
-             // Show everything
-             allSections.forEach(section => section.style.display = 'flex');
-             document.getElementById('play-btn').style.display = 'inline-block';
-             document.getElementById('edit-btn').style.display = 'inline-block';
+             toolbar.style.display = 'flex';
+             editOverlay.classList.add('hidden');
         }
     }
 
     function setPlayMode() {
+        // Snapshot the grid state so we can restore it on restart/edit
+        gameState.playSessionStartGrid = JSON.parse(JSON.stringify(gameState.level.grid));
+
         // --- Initialize Game State for PLAY mode ---
         gameState.collectibles.total = 0;
         gameState.collectibles.collected = 0;
@@ -935,13 +1187,30 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function setEditMode() {
+        // Restore grid from snapshot if it exists (fixes missing coins in editor)
+        if (gameState.playSessionStartGrid) {
+            gameState.level.grid = JSON.parse(JSON.stringify(gameState.playSessionStartGrid));
+            gameState.playSessionStartGrid = null;
+        }
+
         gameState.gameMode = 'EDIT';
         document.getElementById('edit-btn').classList.add('active');
         document.getElementById('play-btn').classList.remove('active');
         // canvasContainer.style.overflow = 'auto'; // Always hidden now
-        mobileControls.classList.add('hidden');
 
         updateToolbarVisibility();
+
+        // Mobile controls and Edit Overlay should be hidden by default in Edit mode,
+        // unless the 'Controls' tool is active.
+        // We do this AFTER updateToolbarVisibility because that function unconditionally hides the edit overlay.
+        const editOverlay = document.getElementById('btn-edit-overlay');
+        if (gameState.activeTool === 'controls') {
+            mobileControls.classList.remove('hidden');
+            editOverlay.classList.remove('hidden');
+        } else {
+            mobileControls.classList.add('hidden');
+            // editOverlay is already hidden by updateToolbarVisibility
+        }
     }
 
 
@@ -988,6 +1257,40 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
+        // Settings listeners
+        const bgColorPicker = document.getElementById('bg-color-picker');
+        bgColorPicker.addEventListener('input', (e) => {
+            gameState.level.backgroundColor = e.target.value;
+        });
+
+        const transparencySlider = document.getElementById('transparency-slider');
+        transparencySlider.addEventListener('input', (e) => {
+            const threshold = parseInt(e.target.value);
+            console.log(`Slider changed to ${threshold}. Last Key: ${gameState.lastUploadedAssetKey}`);
+            // Re-process last uploaded asset if available
+            if (gameState.lastUploadedAssetKey && gameState.originalAssets[gameState.lastUploadedAssetKey]) {
+                const assetKey = gameState.lastUploadedAssetKey;
+                const rawDataURL = gameState.originalAssets[assetKey];
+                const { w, h, keepRatio } = getAssetDimensions(assetKey);
+
+                // We need to reload the image from raw data
+                const img = new Image();
+                img.onload = () => {
+                    processImageObject(img, w, h, keepRatio, threshold).then(base64 => {
+                        updateAssetState(assetKey, base64);
+                    });
+                };
+                img.src = rawDataURL;
+            }
+        });
+
+        // Edit Overlay Listener
+        document.getElementById('btn-edit-overlay').addEventListener('click', setEditMode);
+        document.getElementById('btn-edit-overlay').addEventListener('touchstart', (e) => {
+             e.preventDefault(); // Prevent ghost click if on mobile
+             setEditMode();
+        });
+
         heightPlusBtn.addEventListener('click', () => {
             const newHeight = gameState.level.height + 1;
             document.getElementById('height-label').textContent = newHeight;
@@ -1002,14 +1305,42 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
-        // Save/Load buttons
+        // Save/Load/Reset buttons
         const saveBtn = document.getElementById('save-btn');
         const loadBtn = document.getElementById('load-btn');
         const loadLevelInput = document.getElementById('load-level-input');
+        const resetBtn = document.getElementById('reset-btn');
+        const resetModal = document.getElementById('reset-modal');
+        const resetGridBtn = document.getElementById('reset-grid-btn');
+        const resetAllBtn = document.getElementById('reset-all-btn');
+        const resetCancelBtn = document.getElementById('reset-cancel-btn');
 
         saveBtn.addEventListener('click', saveLevel);
         loadBtn.addEventListener('click', () => loadLevelInput.click());
         loadLevelInput.addEventListener('change', loadLevel);
+
+        resetBtn.addEventListener('click', () => {
+            resetModal.classList.remove('hidden');
+        });
+
+        resetGridBtn.addEventListener('click', () => {
+            resetLevel(true); // Keep assets
+            resetModal.classList.add('hidden');
+        });
+
+        resetAllBtn.addEventListener('click', () => {
+            resetLevel(false); // Reset everything
+            resetModal.classList.add('hidden');
+        });
+
+        resetCancelBtn.addEventListener('click', () => {
+            resetModal.classList.add('hidden');
+        });
+
+        // Auto-load from storage on init, or try default level
+        if (!loadFromLocalStorage()) {
+             loadDefaultLevel();
+        }
 
 
         // Toolbar logic

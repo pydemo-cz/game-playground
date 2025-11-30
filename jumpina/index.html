@@ -23,9 +23,18 @@
                 <button class="tool-btn" data-tool="eraser" title="Erase tiles.">Erase</button>
             </div>
             <div class="toolbar-section">
+                <label title="Background Color" style="display: flex; align-items: center; gap: 5px;">
+                    BG: <input type="color" id="bg-color-picker" value="#ffffff">
+                </label>
+                <label title="Transparency Threshold (0-255)" style="display: flex; align-items: center; gap: 5px; margin-left: 10px;">
+                    Alpha: <input type="range" id="transparency-slider" min="0" max="255" value="240" style="width: 80px;">
+                </label>
+            </div>
+            <div class="toolbar-section">
                 <button id="save-btn">Save</button>
                 <button id="load-btn">Load</button>
                 <input type="file" id="load-level-input" style="display: none;" accept=".json">
+                <button id="reset-btn" style="background-color: #ff6b6b; color: white;">Reset</button>
             </div>
             <div class="toolbar-section">
                 <span>Size:</span>
@@ -52,6 +61,9 @@
         <div id="canvas-container">
             <canvas id="game-canvas"></canvas>
 
+            <!-- Play Mode Edit Button Overlay -->
+            <div id="btn-edit-overlay" class="hidden" title="Back to Edit Mode"></div>
+
             <!-- Mobile Controls Overlay -->
             <div id="mobile-controls" class="hidden">
                 <div class="control-group-left">
@@ -68,8 +80,22 @@
         <input type="file" id="btn-left-asset-input" data-asset="btnLeft" accept="image/*">
         <input type="file" id="btn-right-asset-input" data-asset="btnRight" accept="image/*">
         <input type="file" id="btn-jump-asset-input" data-asset="btnJump" accept="image/*">
+        <input type="file" id="btn-edit-asset-input" data-asset="btnEdit" accept="image/*">
     </div>
 
     <script src="js/main.js"></script>
+
+    <!-- Reset Confirmation Modal -->
+    <div id="reset-modal" class="modal hidden">
+        <div class="modal-content">
+            <h3>Reset Level?</h3>
+            <p>What do you want to reset?</p>
+            <div class="modal-actions">
+                <button id="reset-grid-btn">Level Only (Keep Assets)</button>
+                <button id="reset-all-btn" style="background-color: #ff6b6b;">Everything (Level + Assets)</button>
+                <button id="reset-cancel-btn" style="background-color: #aaa;">Cancel</button>
+            </div>
+        </div>
+    </div>
 </body>
 </html>

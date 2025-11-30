@@ -932,10 +932,28 @@ document.addEventListener('DOMContentLoaded', () => {
                 const data = JSON.parse(json);
                 applyLoadedData(data);
                 console.log("Loaded from localStorage");
+                return true;
             }
         } catch (e) {
             console.error("Failed to load from localStorage", e);
         }
+        return false;
+    }
+
+    function loadDefaultLevel() {
+        fetch('default_level.json')
+            .then(response => {
+                if (!response.ok) throw new Error("Default level not found");
+                return response.json();
+            })
+            .then(data => {
+                console.log("Loaded default level from file.");
+                applyLoadedData(data);
+                saveToLocalStorage(data); // Save so it persists
+            })
+            .catch(err => {
+                console.log("No default level found or load failed, using empty grid.", err);
+            });
     }
 
     function applyLoadedData(data) {
@@ -1319,8 +1337,10 @@ document.addEventListener('DOMContentLoaded', () => {
             resetModal.classList.add('hidden');
         });
 
-        // Auto-load from storage on init
-        loadFromLocalStorage();
+        // Auto-load from storage on init, or try default level
+        if (!loadFromLocalStorage()) {
+             loadDefaultLevel();
+        }
 
 
         // Toolbar logic

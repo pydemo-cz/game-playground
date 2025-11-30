@@ -64,6 +64,7 @@ document.addEventListener('DOMContentLoaded', () => {
         originalAssets: {}, // Store raw Data URLs for reprocessing
         lastUploadedAssetKey: null,
         editorPlayerPreview: 'Idle', // 'Idle' or 'Jump'
+        playSessionStartGrid: null, // Backup of grid at start of play session
     };
 
     // --- DOM Elements ---
@@ -420,11 +421,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Manage Mobile Controls Overlay Visibility
         const mobileControls = document.getElementById('mobile-controls');
+        const editOverlay = document.getElementById('btn-edit-overlay');
+
         if (toolName === 'controls') {
             mobileControls.classList.remove('hidden');
+            editOverlay.classList.remove('hidden');
         } else if (gameState.gameMode === 'EDIT') {
             // In Edit mode, only show if tool is controls
             mobileControls.classList.add('hidden');
+            editOverlay.classList.add('hidden');
         }
 
         // Helper to create upload button
@@ -714,17 +719,31 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function restartLevel() {
-         // Find player start again
+         // Restore grid if we have a backup (reverts collected coins etc.)
+         if (gameState.playSessionStartGrid) {
+             gameState.level.grid = JSON.parse(JSON.stringify(gameState.playSessionStartGrid));
+         }
+
+         // Reset collectibles counters
+         gameState.collectibles.collected = 0;
+         gameState.collectibles.total = 0;
+
+         // Find player start and recount totals
          let playerStart = { x: 100, y: 100 };
          for (let y = 0; y < gameState.level.height; y++) {
             for (let x = 0; x < gameState.level.width; x++) {
-                if (gameState.level.grid[y][x] === 'player') {
+                const tile = gameState.level.grid[y][x];
+                if (tile === 'player') {
                     playerStart.x = x * CONFIG.GRID_SIZE;
                     playerStart.y = y * CONFIG.GRID_SIZE;
-                    break;
+                } else if (tile === 'coin') {
+                    gameState.collectibles.total++;
                 }
             }
          }
+
+         gameState.exit.activated = false;
+
          gameState.player.x = playerStart.x;
          gameState.player.y = playerStart.y;
          gameState.player.vx = 0;
@@ -1094,6 +1113,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function setPlayMode() {
+        // Snapshot the grid state so we can restore it on restart/edit
+        gameState.playSessionStartGrid = JSON.parse(JSON.stringify(gameState.level.grid));
+
         // --- Initialize Game State for PLAY mode ---
         gameState.collectibles.total = 0;
         gameState.collectibles.collected = 0;
@@ -1134,20 +1156,30 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function setEditMode() {
+        // Restore grid from snapshot if it exists (fixes missing coins in editor)
+        if (gameState.playSessionStartGrid) {
+            gameState.level.grid = JSON.parse(JSON.stringify(gameState.playSessionStartGrid));
+            gameState.playSessionStartGrid = null;
+        }
+
         gameState.gameMode = 'EDIT';
         document.getElementById('edit-btn').classList.add('active');
         document.getElementById('play-btn').classList.remove('active');
         // canvasContainer.style.overflow = 'auto'; // Always hidden now
 
-        // Mobile controls should be hidden by default in Edit mode,
+        updateToolbarVisibility();
+
+        // Mobile controls and Edit Overlay should be hidden by default in Edit mode,
         // unless the 'Controls' tool is active.
+        // We do this AFTER updateToolbarVisibility because that function unconditionally hides the edit overlay.
+        const editOverlay = document.getElementById('btn-edit-overlay');
         if (gameState.activeTool === 'controls') {
             mobileControls.classList.remove('hidden');
+            editOverlay.classList.remove('hidden');
         } else {
             mobileControls.classList.add('hidden');
+            // editOverlay is already hidden by updateToolbarVisibility
         }
-
-        updateToolbarVisibility();
     }
 
 

@@ -63,6 +63,7 @@ document.addEventListener('DOMContentLoaded', () => {
         },
         originalAssets: {}, // Store raw Data URLs for reprocessing
         lastUploadedAssetKey: null,
+        editorPlayerPreview: 'Idle', // 'Idle' or 'Jump'
     };
 
     // --- DOM Elements ---
@@ -334,6 +335,13 @@ document.addEventListener('DOMContentLoaded', () => {
             updateEditButtonVisuals();
         }
 
+        // Update player preview state if player assets are uploaded
+        if (assetName === 'playerIdle') {
+            gameState.editorPlayerPreview = 'Idle';
+        } else if (assetName === 'playerJump') {
+            gameState.editorPlayerPreview = 'Jump';
+        }
+
         console.log(`Asset '${assetName}' processed and cached. Length: ${base64.length}`);
     }
 
@@ -409,6 +417,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Clear existing
         container.innerHTML = '';
+
+        // Manage Mobile Controls Overlay Visibility
+        const mobileControls = document.getElementById('mobile-controls');
+        if (toolName === 'controls') {
+            mobileControls.classList.remove('hidden');
+        } else if (gameState.gameMode === 'EDIT') {
+            // In Edit mode, only show if tool is controls
+            mobileControls.classList.add('hidden');
+        }
 
         // Helper to create upload button
         const createUploadBtn = (label, assetKey) => {
@@ -523,13 +540,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     if (img && img.complete) {
                         ctx.drawImage(img, posX, posY, CONFIG.GRID_SIZE, CONFIG.GRID_SIZE);
-                    } else if (tileType === 'player' && assetImages['playerIdle']) {
-                        // Special case for player in editor: draw sprite if available
-                        // Player is larger than grid, center it horizontally on the tile, bottom aligned
-                        // Actually logic in game is Top-Left based.
-                        const pImg = assetImages['playerIdle'];
-                        if (pImg.complete) {
+                    } else if (tileType === 'player') {
+                        // Determine which sprite to show (Idle or Jump based on last upload)
+                        const previewKey = 'player' + gameState.editorPlayerPreview; // 'playerIdle' or 'playerJump'
+                        const pImg = assetImages[previewKey] || assetImages['playerIdle']; // Fallback to Idle if Jump missing
+
+                        if (pImg && pImg.complete) {
                              ctx.drawImage(pImg, posX, posY, CONFIG.PLAYER_WIDTH, CONFIG.PLAYER_HEIGHT);
+                        } else {
+                             // Fallback to rect if no images
+                             ctx.fillStyle = TILE_COLORS.player;
+                             ctx.fillRect(posX, posY, CONFIG.GRID_SIZE, CONFIG.GRID_SIZE);
                         }
                     } else {
                         // Fallback to placeholder color
@@ -1117,7 +1138,14 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('edit-btn').classList.add('active');
         document.getElementById('play-btn').classList.remove('active');
         // canvasContainer.style.overflow = 'auto'; // Always hidden now
-        mobileControls.classList.add('hidden');
+
+        // Mobile controls should be hidden by default in Edit mode,
+        // unless the 'Controls' tool is active.
+        if (gameState.activeTool === 'controls') {
+            mobileControls.classList.remove('hidden');
+        } else {
+            mobileControls.classList.add('hidden');
+        }
 
         updateToolbarVisibility();
     }

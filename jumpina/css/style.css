@@ -124,6 +124,27 @@ canvas {
     pointer-events: auto;
 }
 
+/* Edit Button Overlay for Play Mode */
+#btn-edit-overlay {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    width: 60px;
+    height: 60px;
+    background-color: rgba(255, 255, 255, 0.3);
+    border: 2px solid rgba(255, 255, 255, 0.5);
+    background-size: cover;
+    background-position: center;
+    border-radius: 8px;
+    cursor: pointer;
+    z-index: 30;
+    pointer-events: auto;
+}
+
+#btn-edit-overlay:hover {
+    background-color: rgba(255, 255, 255, 0.5);
+}
+
 /* Hidden state */
 .hidden {
     display: none !important;

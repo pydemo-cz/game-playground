@@ -1,61 +1,1072 @@
 {
-  "sample": {
-    "Zaklady_kresby": {
-      "title": "Základy kresby",
-      "questions": [
-        {
-          "question": "Co je účelem základní kresby?",
-          "answers": [
-            "Zachytit realitu pomocí linií, tvarů a světla.",
-            "Vyplnit papír barvami.",
-            "Vytvořit animaci.",
-            "Změřit velikost objektu pravítkem."
-          ],
-          "correct": "Zachytit realitu pomocí linií, tvarů a světla."
-        }
-      ]
-    },
-
-    "Herni_mechaniky_a_pravidla": {
-      "title": "Herní mechaniky a pravidla",
-      "questions": [
-        {
-          "question": "Co je herní mechanika?",
-          "answers": [
-            "Pravidlo nebo činnost, kterou může hráč ve hře vykonávat.",
-            "Druh grafického filtru.",
-            "Hudební doprovod.",
-            "Nastavení obtížnosti."
-          ],
-          "correct": "Pravidlo nebo činnost, kterou může hráč ve hře vykonávat."
-        },
-        {
-          "question": "Co znamená balancování hry?",
-          "answers": [
-            "Úpravy obtížnosti, aby hra nebyla ani příliš lehká, ani příliš těžká.",
-            "Zvýšení počtu barev v prostředí.",
-            "Přidání nových animací.",
-            "Změna názvu hry."
-          ],
-          "correct": "Úpravy obtížnosti, aby hra nebyla ani příliš lehká, ani příliš těžká."
-        }
-      ]
-    },
-
-    "Budoucnost_herniho_designu": {
-      "title": "Budoucnost herního designu",
-      "questions": [
-        {
-          "question": "Co je VR (Virtual Reality)?",
-          "answers": [
-            "Technologie, která vtahuje hráče přímo do herního světa.",
-            "Komiksový styl kresby.",
-            "Zvukový efekt ve hře.",
-            "Typ textury pro 3D modely."
-          ],
-          "correct": "Technologie, která vtahuje hráče přímo do herního světa."
-        }
-      ]
-    }
+  "Zaklady_kresby": {
+    "questions": [
+      {
+        "question": "Co je účelem základní kresby?",
+        "answers": [
+          "Zachytit realitu pomocí linií, tvarů a světla.",
+          "Nakreslit co nejvíc barev.",
+          "Vytvořit animaci.",
+          "Změnit fotografii na obrázek."
+        ],
+        "correct": "Zachytit realitu pomocí linií, tvarů a světla."
+      },
+      {
+        "question": "Co je kontura?",
+        "answers": [
+          "Vnitřní stín objektu.",
+          "Vnější obrys definující tvar předmětu.",
+          "Označení pro barvu.",
+          "Speciální typ skici."
+        ],
+        "correct": "Vnější obrys definující tvar předmětu."
+      },
+      {
+        "question": "K čemu slouží skica?",
+        "answers": [
+          "K rychlému zachycení nápadu.",
+          "K finální prezentaci.",
+          "K malování olejem.",
+          "K tvorbě 3D modelů."
+        ],
+        "correct": "K rychlému zachycení nápadu."
+      },
+      {
+        "question": "Co je pozorování v kresbě?",
+        "answers": [
+          "Dívání se na předmět a analýza jeho tvaru, světla a proporcí.",
+          "Kreslení zpaměti.",
+          "Použití pravítka.",
+          "Použití filtrů."
+        ],
+        "correct": "Dívání se na předmět a analýza jeho tvaru, světla a proporcí."
+      }
+    ],
+    "title": "Základy kresby"
+  },
+  "Svetlo_a_stin": {
+    "questions": [
+      {
+        "question": "Jak vzniká stín na objektu?",
+        "answers": [
+          "Nedostatkem světla dopadajícího na část objektu.",
+          "Přidáním černé barvy.",
+          "Použitím pravítka.",
+          "Náhodně."
+        ],
+        "correct": "Nedostatkem světla dopadajícího na část objektu."
+      },
+      {
+        "question": "Co je zdroj světla?",
+        "answers": [
+          "Místo, odkud světlo přichází.",
+          "Použitá barva.",
+          "Místo, kde začíná kresba.",
+          "Prostor mezi objekty."
+        ],
+        "correct": "Místo, odkud světlo přichází."
+      },
+      {
+        "question": "Co je jádrový stín?",
+        "answers": [
+          "Nejsvětlejší část objektu.",
+          "Nejtmavší část stínu na objektu.",
+          "Odrážející plocha.",
+          "Vzdálené pozadí."
+        ],
+        "correct": "Nejtmavší část stínu na objektu."
+      },
+      {
+        "question": "Co je odražené světlo?",
+        "answers": [
+          "Světlo, které se odráží z okolních ploch na stínovanou část.",
+          "Přímý paprsek.",
+          "Stín pozadí.",
+          "Vlastní záře objektu."
+        ],
+        "correct": "Světlo, které se odráží z okolních ploch na stínovanou část."
+      }
+    ],
+    "title": "Světlo a stín"
+  },
+  "Perspektiva": {
+    "questions": [
+      {
+        "question": "Co je horizont v perspektivě?",
+        "answers": [
+          "Úroveň očí pozorovatele.",
+          "Vrchol budovy.",
+          "Dolní okraj papíru.",
+          "Vrstva atmosféry."
+        ],
+        "correct": "Úroveň očí pozorovatele."
+      },
+      {
+        "question": "Co je úběžník?",
+        "answers": [
+          "Místo, kde se sbíhají rovnoběžné linie v perspektivě.",
+          "Jméno nástroje na měření.",
+          "Typ stínu.",
+          "Název barvy."
+        ],
+        "correct": "Místo, kde se sbíhají rovnoběžné linie v perspektivě."
+      },
+      {
+        "question": "Kolik úběžníků má dvoubodová perspektiva?",
+        "answers": [
+          "Jeden",
+          "Dva",
+          "Tři",
+          "Čtyři"
+        ],
+        "correct": "Dva"
+      },
+      {
+        "question": "Co perspektiva umožňuje?",
+        "answers": [
+          "Zobrazit hloubku a prostor na plochém papíru.",
+          "Vytvořit více barev.",
+          "Zvětšit objekt.",
+          "Zjednodušit tvar."
+        ],
+        "correct": "Zobrazit hloubku a prostor na plochém papíru."
+      }
+    ],
+    "title": "Perspektiva"
+  },
+  "Kompozice": {
+    "questions": [
+      {
+        "question": "Co je kompozice?",
+        "answers": [
+          "Uspořádání prvků v obraze.",
+          "Typ tužky.",
+          "Způsob míchání barev.",
+          "Vytváření animací."
+        ],
+        "correct": "Uspořádání prvků v obraze."
+      },
+      {
+        "question": "Co je vizuální dominance?",
+        "answers": [
+          "Prvek, který nejvíce přitahuje pozornost.",
+          "Nejtmavší barva.",
+          "Nejmenší tvar.",
+          "Stín v pozadí."
+        ],
+        "correct": "Prvek, který nejvíce přitahuje pozornost."
+      },
+      {
+        "question": "Co je zlatý řez?",
+        "answers": [
+          "Harmonické dělení prostoru.",
+          "Stínovací technika.",
+          "Typ papíru.",
+          "Úhel perspektivy."
+        ],
+        "correct": "Harmonické dělení prostoru."
+      },
+      {
+        "question": "K čemu slouží rytmus v kompozici?",
+        "answers": [
+          "Vede oko diváka obrazem.",
+          "Určuje barevnost.",
+          "Změní perspektivu.",
+          "Nastaví kontrast."
+        ],
+        "correct": "Vede oko diváka obrazem."
+      }
+    ],
+    "title": "Kompozice"
+  },
+  "Struktury_a_materialy": {
+    "questions": [
+      {
+        "question": "Co je textura?",
+        "answers": [
+          "Povrchová struktura objektu.",
+          "Druh barvy.",
+          "Typ papíru.",
+          "Název pro úběžník."
+        ],
+        "correct": "Povrchová struktura objektu."
+      },
+      {
+        "question": "Jak vyjádřit lesklý povrch?",
+        "answers": [
+          "Ostrými světly a hlubokými stíny.",
+          "Použitím jen jedné barvy.",
+          "Úplným vynecháním světel.",
+          "Kreslením obrysů."
+        ],
+        "correct": "Ostrými světly a hlubokými stíny."
+      },
+      {
+        "question": "Který materiál má nepravidelnou texturu?",
+        "answers": [
+          "Kámen",
+          "Sklo",
+          "Zrcadlo",
+          "Leštěný kov"
+        ],
+        "correct": "Kámen"
+      },
+      {
+        "question": "Co je kreslení struktur?",
+        "answers": [
+          "Studium povrchů a jejich přenesení do kresby.",
+          "Čisté obkreslení obrysu.",
+          "Vytváření barev.",
+          "Tisk na papír."
+        ],
+        "correct": "Studium povrchů a jejich přenesení do kresby."
+      }
+    ],
+    "title": "Struktury a materiály"
+  },
+  "Figuralni_kresba": {
+    "questions": [
+      {
+        "question": "Co jsou proporce těla?",
+        "answers": [
+          "Vztahy velikostí mezi částmi těla.",
+          "Síla stínu.",
+          "Výška osoby v cm.",
+          "Barva oblečení."
+        ],
+        "correct": "Vztahy velikostí mezi částmi těla."
+      },
+      {
+        "question": "Proč se používá 8 hlav jako měřítko?",
+        "answers": [
+          "Je to tradiční způsob určování ideálních proporcí.",
+          "Je to norma papíru.",
+          "Tak se kreslí jen anime.",
+          "Předepisuje to škola."
+        ],
+        "correct": "Je to tradiční způsob určování ideálních proporcí."
+      },
+      {
+        "question": "Co je gesto v kresbě postavy?",
+        "answers": [
+          "Rychlá skica zachycující pohyb a dynamiku.",
+          "Detail ruky.",
+          "Stín oblečení.",
+          "Barva pozadí."
+        ],
+        "correct": "Rychlá skica zachycující pohyb a dynamiku."
+      },
+      {
+        "question": "Proč je důležité studovat kostru?",
+        "answers": [
+          "Pomáhá pochopit pohyb a držení těla.",
+          "Zlepšuje barvy.",
+          "Tvoří pozadí.",
+          "Učí perspektivu."
+        ],
+        "correct": "Pomáhá pochopit pohyb a držení těla."
+      }
+    ],
+    "title": "Figurální kresba"
+  },
+  "Anatomie_hlavy_a_obliceje": {
+    "questions": [
+      {
+        "question": "Proč je užitečné znát základní anatomii hlavy a obličeje při kresbě?",
+        "answers": [
+          "Protože pomáhá správně umístit oči, nos, ústa a uši v prostoru.",
+          "Protože určuje, jakou barvu má mít pleť.",
+          "Protože bez toho nelze kreslit tělo.",
+          "Protože je to nutné jen pro lékařské ilustrace."
+        ],
+        "correct": "Protože pomáhá správně umístit oči, nos, ústa a uši v prostoru."
+      },
+      {
+        "question": "Kde se při neutrálním pohledu obvykle nachází oči na hlavě v čelním pohledu?",
+        "answers": [
+          "V horní třetině hlavy.",
+          "Přibližně v polovině výšky hlavy.",
+          "V dolní třetině hlavy.",
+          "Téměř u vlasové linie."
+        ],
+        "correct": "Přibližně v polovině výšky hlavy."
+      },
+      {
+        "question": "Kde obvykle končí nos v proporcích hlavy?",
+        "answers": [
+          "Uprostřed mezi obočím a bradou.",
+          "V úrovni očí.",
+          "V úrovni horního víčka.",
+          "V půlce čela."
+        ],
+        "correct": "Uprostřed mezi obočím a bradou."
+      },
+      {
+        "question": "Jaký je jednoduchý způsob, jak zkontrolovat symetrii obličeje v kresbě?",
+        "answers": [
+          "Překlopit kresbu zrcadlově (fyzicky nebo digitálně).",
+          "Použít silnější tužku.",
+          "Přebarvit pozadí.",
+          "Zmenšit celou kresbu."
+        ],
+        "correct": "Překlopit kresbu zrcadlově (fyzicky nebo digitálně)."
+      }
+    ],
+    "title": "Anatomie hlavy a obličeje"
+  },
+  "Pohyb_a_dynamika_postavy": {
+    "questions": [
+      {
+        "question": "Co je hlavním cílem gestické kresby postavy?",
+        "answers": [
+          "Rychle zachytit pohyb, směr a energii pózy.",
+          "Nakreslit dokonale oblečení.",
+          "Vyplnit celý papír detaily.",
+          "Změřit přesnou výšku postavy."
+        ],
+        "correct": "Rychle zachytit pohyb, směr a energii pózy."
+      },
+      {
+        "question": "Co znamená „line of action“ u postavy?",
+        "answers": [
+          "Přímka nebo křivka, která shrnuje hlavní směr pohybu těla.",
+          "Čára obrysu nohy.",
+          "Středová osa papíru.",
+          "Linka mezi očima."
+        ],
+        "correct": "Přímka nebo křivka, která shrnuje hlavní směr pohybu těla."
+      },
+      {
+        "question": "Jak v kresbě vyjádřit dynamickou pózu oproti statické?",
+        "answers": [
+          "Použít zakřivené linie, náklon těla a předsunutí hmoty.",
+          "Kreslit pouze rovné vertikální linie.",
+          "Umístit postavu doprostřed papíru bez náklonu.",
+          "Vyhnout se jakýmkoli stínům."
+        ],
+        "correct": "Použít zakřivené linie, náklon těla a předsunutí hmoty."
+      },
+      {
+        "question": "Proč je užitečné kreslit krátké časované pózy (např. 30–60 sekund)?",
+        "answers": [
+          "Nutí soustředit se na celek a pohyb, ne na detaily.",
+          "Je to jediná povolená délka kresby.",
+          "Je to vhodné jen pro profesionály.",
+          "Slouží jen k procvičení perspektivy pozadí."
+        ],
+        "correct": "Nutí soustředit se na celek a pohyb, ne na detaily."
+      }
+    ],
+    "title": "Pohyb a dynamika postavy"
+  },
+  "Kresba_z_fantasie_a_stylizace": {
+    "questions": [
+      {
+        "question": "Co znamená stylizace v kresbě?",
+        "answers": [
+          "Zjednodušení a úprava reality podle zvoleného výtvarného stylu.",
+          "Přesné překreslení fotografie.",
+          "Použití jen jedné barvy.",
+          "Kreslení bez referencí a pravidel."
+        ],
+        "correct": "Zjednodušení a úprava reality podle zvoleného výtvarného stylu."
+      },
+      {
+        "question": "Jaký je rozdíl mezi realismem a stylizací?",
+        "answers": [
+          "Realismus se snaží přiblížit skutečnosti, stylizace vědomě realitu mění.",
+          "Realismus používá jen tužku, stylizace jen barvy.",
+          "Stylizace je vždy jednodušší na kreslení.",
+          "Realismus je vhodný jen pro portréty."
+        ],
+        "correct": "Realismus se snaží přiblížit skutečnosti, stylizace vědomě realitu mění."
+      },
+      {
+        "question": "Jak může kresba z fantazie těžit z kresby podle reality?",
+        "answers": [
+          "Lepší znalost proporcí, světla a tvaru umožní věrohodněji vymýšlet nové věci.",
+          "Kresba z fantazie už realitu nepotřebuje.",
+          "Stačí znát barvy, tvary nejsou důležité.",
+          "Kresba podle reality a z fantazie spolu nesouvisí."
+        ],
+        "correct": "Lepší znalost proporcí, světla a tvaru umožní věrohodněji vymýšlet nové věci."
+      },
+      {
+        "question": "Proč je dobré vytvořit si pro vlastní styl „vizuální slovník“?",
+        "answers": [
+          "Aby měl autor zásobu tvarů, linií a motivů, které opakovaně používá.",
+          "Aby nemusel nikdy kreslit znovu.",
+          "Aby se vyhnul kreslení z fantazie.",
+          "Aby mohl kreslit jen podle jedné předlohy."
+        ],
+        "correct": "Aby měl autor zásobu tvarů, linií a motivů, které opakovaně používá."
+      }
+    ],
+    "title": "Kresba z fantazie a stylizace"
+  },
+  "Co_je_design": {
+    "questions": [
+      {
+        "question": "Co je hlavním cílem designu?",
+        "answers": [
+          "Řešit problém a vytvářet funkční řešení.",
+          "Vytvořit co nejhezčí obrázek.",
+          "Použít co nejvíce barev.",
+          "Nahradit programování."
+        ],
+        "correct": "Řešit problém a vytvářet funkční řešení."
+      },
+      {
+        "question": "Proč je důležité chápat uživatele při designu?",
+        "answers": [
+          "Aby řešení odpovídalo jejich potřebám.",
+          "Aby mohl designér kreslit rychleji.",
+          "Aby hra měla více postav.",
+          "Aby se zjednodušila grafika."
+        ],
+        "correct": "Aby řešení odpovídalo jejich potřebám."
+      },
+      {
+        "question": "Co znamená pojem 'funkce před formou'?",
+        "answers": [
+          "Design musí nejdřív fungovat, až potom dobře vypadat.",
+          "Design musí být co nejbarevnější.",
+          "Design musí být složitý.",
+          "Vzhled je důležitější než funkčnost."
+        ],
+        "correct": "Design musí nejdřív fungovat, až potom dobře vypadat."
+      }
+    ],
+    "title": "Co je design"
+  },
+  "Herni_design_a_jeho_prvky": {
+    "questions": [
+      {
+        "question": "Co je hlavním úkolem herního designéra?",
+        "answers": [
+          "Navrhnout pravidla, mechaniky a celkovou hratelnost.",
+          "Nakreslit všechny postavy.",
+          "Programovat hru.",
+          "Spravovat marketing."
+        ],
+        "correct": "Navrhnout pravidla, mechaniky a celkovou hratelnost."
+      },
+      {
+        "question": "Co je cílem herního designu?",
+        "answers": [
+          "Vytvořit zábavný a funkční hráčský zážitek.",
+          "Vytvořit jen pěkné obrázky.",
+          "Zajistit co největší rozlišení grafiky.",
+          "Zjednodušit příběh."
+        ],
+        "correct": "Vytvořit zábavný a funkční hráčský zážitek."
+      },
+      {
+        "question": "Co je core loop?",
+        "answers": [
+          "Hlavní opakující se činnost, kterou hráč dělá po celou hru.",
+          "Hudební efekt.",
+          "Název pro grafickou smyčku.",
+          "Úvodní animace."
+        ],
+        "correct": "Hlavní opakující se činnost, kterou hráč dělá po celou hru."
+      }
+    ],
+    "title": "Herní design a jeho prvky"
+  },
+  "Herni_mechaniky_a_pravidla": {
+    "questions": [
+      {
+        "question": "Co je herní mechanika?",
+        "answers": [
+          "Pravidlo nebo činnost, kterou hráč může ve hře vykonávat.",
+          "Hudební doprovod hry.",
+          "Grafické rozhraní.",
+          "Pozadí menu."
+        ],
+        "correct": "Pravidlo nebo činnost, kterou hráč může ve hře vykonávat."
+      },
+      {
+        "question": "Co je balancování hry?",
+        "answers": [
+          "Upravování pravidel a hodnot, aby hra nebyla příliš lehká ani těžká.",
+          "Přidávání barev.",
+          "Změna názvů levelů.",
+          "Odstranění všech nepřátel."
+        ],
+        "correct": "Upravování pravidel a hodnot, aby hra nebyla příliš lehká ani těžká."
+      },
+      {
+        "question": "Co je feedback (zpětná vazba) při mechanikách?",
+        "answers": [
+          "Informace, kterou hra okamžitě dává hráči (zvuk, efekt, animace).",
+          "Doporučení učitele.",
+          "Zpětná instalace hry.",
+          "Náhodný zvuk."
+        ],
+        "correct": "Informace, kterou hra okamžitě dává hráči (zvuk, efekt, animace)."
+      }
+    ],
+    "title": "Herní mechaniky a pravidla"
+  },
+  "Level_design_a_prostredi": {
+    "questions": [
+      {
+        "question": "Co je role level designu?",
+        "answers": [
+          "Navrhnout prostor, cestu hráče a rozmístění překážek a odměn.",
+          "Vymyslet hudbu.",
+          "Opravit chyby.",
+          "Vybrat barvy uživatelského rozhraní."
+        ],
+        "correct": "Navrhnout prostor, cestu hráče a rozmístění překážek a odměn."
+      },
+      {
+        "question": "Co je environmentální storytelling?",
+        "answers": [
+          "Vyprávění příběhu pomocí prostředí.",
+          "Vyprávění příběhu pomocí dialogů.",
+          "Vyprávění příběhu pomocí hudby.",
+          "Vyprávění příběhu pomocí animací."
+        ],
+        "correct": "Vyprávění příběhu pomocí prostředí."
+      },
+      {
+        "question": "Jaká vlastnost je klíčová pro dobrý level?",
+        "answers": [
+          "Jasná orientace hráče.",
+          "Maximální počet nepřátel.",
+          "Čím více náhodných cest, tím lépe.",
+          "Nevýrazné barvy."
+        ],
+        "correct": "Jasná orientace hráče."
+      }
+    ],
+    "title": "Level design a prostředí"
+  },
+  "UI_a_UX": {
+    "questions": [
+      {
+        "question": "Co je UI (User Interface)?",
+        "answers": [
+          "Uživatelské rozhraní – to, co hráč vidí a ovládá.",
+          "Hudební systém.",
+          "Fyzika objektů.",
+          "Typ animace."
+        ],
+        "correct": "Uživatelské rozhraní – to, co hráč vidí a ovládá."
+      },
+      {
+        "question": "Co je UX (User Experience)?",
+        "answers": [
+          "Zkušenost hráče – jak se při hraní cítí.",
+          "Počet animací.",
+          "Síla zvuku.",
+          "Rozlišení grafiky."
+        ],
+        "correct": "Zkušenost hráče – jak se při hraní cítí."
+      },
+      {
+        "question": "Co znamená, že UI má být konzistentní?",
+        "answers": [
+          "Prvky vypadají a chovají se podobně napříč hrou.",
+          "Všechno je černobílé.",
+          "Každý level má jiný styl.",
+          "Menu je skryté."
+        ],
+        "correct": "Prvky vypadají a chovají se podobně napříč hrou."
+      }
+    ],
+    "title": "UI a UX"
+  },
+  "Herni_pribeh_a_narativ": {
+    "questions": [
+      {
+        "question": "Co je narativní design?",
+        "answers": [
+          "Způsob, jakým hra vypráví příběh pomocí všech svých prvků.",
+          "Pouze psaní dialogů.",
+          "Pouze kreslení postav.",
+          "Pouze výběr hudby."
+        ],
+        "correct": "Způsob, jakým hra vypráví příběh pomocí všech svých prvků."
+      },
+      {
+        "question": "Co je rozdíl mezi příběhem a zážitkem?",
+        "answers": [
+          "Příběh jsou události, zážitek je to, jak je hráč prožívá.",
+          "Příběh je grafika, zážitek zvuk.",
+          "Je to totéž.",
+          "Záleží jen na hudbě."
+        ],
+        "correct": "Příběh jsou události, zážitek je to, jak je hráč prožívá."
+      },
+      {
+        "question": "Co je role postav v příběhu?",
+        "answers": [
+          "Dávají příběhu emoce, motivaci a vztahy.",
+          "Slouží jen jako dekorace.",
+          "Používají se jen v cutscénách.",
+          "Mají nahradit mechaniky."
+        ],
+        "correct": "Dávají příběhu emoce, motivaci a vztahy."
+      }
+    ],
+    "title": "Herní příběh a narativ"
+  },
+  "Design_postav": {
+    "questions": [
+      {
+        "question": "Co je charakterový design?",
+        "answers": [
+          "Tvorba vzhledu, osobnosti a role postavy.",
+          "Tvorba mapy.",
+          "Výběr zvuku.",
+          "Kódování umělé inteligence."
+        ],
+        "correct": "Tvorba vzhledu, osobnosti a role postavy."
+      },
+      {
+        "question": "Co je silueta postavy?",
+        "answers": [
+          "Tvar postavy bez detailů, který by měl být snadno rozpoznatelný.",
+          "Stín postavy.",
+          "Název pro kostru.",
+          "Barva pozadí."
+        ],
+        "correct": "Tvar postavy bez detailů, který by měl být snadno rozpoznatelný."
+      },
+      {
+        "question": "Proč má mít postava motivaci?",
+        "answers": [
+          "Aby působila věrohodně a dala příběhu směr.",
+          "Aby měla více barev.",
+          "Aby nemusela být v příběhu.",
+          "Aby se neobjevovala v level designu."
+        ],
+        "correct": "Aby působila věrohodně a dala příběhu směr."
+      }
+    ],
+    "title": "Design postav"
+  },
+  "Herni_zanry_a_jejich_specifika": {
+    "questions": [
+      {
+        "question": "Co určuje herní žánr?",
+        "answers": [
+          "Typ herního zážitku, mechanik a pravidel.",
+          "Počet misí.",
+          "Délku animací.",
+          "Barvu prostředí."
+        ],
+        "correct": "Typ herního zážitku, mechanik a pravidel."
+      },
+      {
+        "question": "Co je typické pro RPG (Role-Playing Game)?",
+        "answers": [
+          "Rozvoj postavy a rozhodování hráče.",
+          "Pouze rychlé reflexy.",
+          "Absence příběhu.",
+          "Čistě logické úkoly."
+        ],
+        "correct": "Rozvoj postavy a rozhodování hráče."
+      },
+      {
+        "question": "Co je smíšený herní žánr?",
+        "answers": [
+          "Hra kombinující více různých žánrových prvků.",
+          "Hra bez pravidel.",
+          "Hra bez příběhu.",
+          "Hra pouze pro více hráčů."
+        ],
+        "correct": "Hra kombinující více různých žánrových prvků."
+      }
+    ],
+    "title": "Herní žánry a jejich specifika"
+  },
+  "Herni_svet_a_lore": {
+    "questions": [
+      {
+        "question": "Co je lore?",
+        "answers": [
+          "Historie, mýty a pozadí herního světa.",
+          "Grafické efekty.",
+          "Hudební stopa.",
+          "Seznam nepřátel."
+        ],
+        "correct": "Historie, mýty a pozadí herního světa."
+      },
+      {
+        "question": "Proč je důležité, aby prostředí vyprávělo příběh?",
+        "answers": [
+          "Zvyšuje ponoření hráče do světa a působí věrohodně.",
+          "Snižuje potřebu hudby.",
+          "Nahrazuje hlavní menu.",
+          "Zvyšuje počet levelů."
+        ],
+        "correct": "Zvyšuje ponoření hráče do světa a působí věrohodně."
+      },
+      {
+        "question": "Co jsou pravidla světa?",
+        "answers": [
+          "Co je v herním světě možné a co ne (např. magie, technologie).",
+          "Pravidla hodnocení hry.",
+          "Pravidla multiplayeru.",
+          "Pravidla kompozice."
+        ],
+        "correct": "Co je v herním světě možné a co ne (např. magie, technologie)."
+      }
+    ],
+    "title": "Herní svět a lore"
+  },
+  "Herni_ekonomika_a_odmeny": {
+    "questions": [
+      {
+        "question": "Co jsou herní zdroje?",
+        "answers": [
+          "Předměty, měny nebo energie, které hráč sbírá.",
+          "Hudební efekty.",
+          "Vizuální efekty.",
+          "Nastavení kamery."
+        ],
+        "correct": "Předměty, měny nebo energie, které hráč sbírá."
+      },
+      {
+        "question": "Co je risk-reward (riziko–odměna)?",
+        "answers": [
+          "Princip, kdy vyšší riziko může přinést vyšší odměnu.",
+          "Grafická chyba hry.",
+          "Nastavení jasu.",
+          "Rozdíl mezi PC a konzolí."
+        ],
+        "correct": "Princip, kdy vyšší riziko může přinést vyšší odměnu."
+      },
+      {
+        "question": "Co jsou estetické odměny?",
+        "answers": [
+          "Skiny, barvy a vizuální styl bez vlivu na hratelnost.",
+          "Finální bossové.",
+          "Nové levely.",
+          "Nastavení zvuku."
+        ],
+        "correct": "Skiny, barvy a vizuální styl bez vlivu na hratelnost."
+      }
+    ],
+    "title": "Herní ekonomika a odměny"
+  },
+  "Testovani_a_vyhodnocovani_her": {
+    "questions": [
+      {
+        "question": "Co je playtesting?",
+        "answers": [
+          "Sledování hráčů při hraní hry za účelem vylepšení designu.",
+          "Testování hudby.",
+          "Kontrola rozlišení monitoru.",
+          "Vyhodnocení barev."
+        ],
+        "correct": "Sledování hráčů při hraní hry za účelem vylepšení designu."
+      },
+      {
+        "question": "Co je regresní testování?",
+        "answers": [
+          "Kontrola, že oprava jedné chyby nevytvořila jinou.",
+          "Návrat ke staré verzi hry.",
+          "Testování na mobilu.",
+          "Testování hudby."
+        ],
+        "correct": "Kontrola, že oprava jedné chyby nevytvořila jinou."
+      },
+      {
+        "question": "Proč designér nechává hráče hrát bez vysvětlování?",
+        "answers": [
+          "Aby zjistil, zda je hra intuitivní a srozumitelná.",
+          "Aby hráč udělal víc chyb.",
+          "Aby se zkrátil čas testování.",
+          "Aby nedával zpětnou vazbu."
+        ],
+        "correct": "Aby zjistil, zda je hra intuitivní a srozumitelná."
+      }
+    ],
+    "title": "Testování a vyhodnocování her"
+  },
+  "Tymova_spoluprace": {
+    "questions": [
+      {
+        "question": "Co je hlavní výhodou týmové práce při tvorbě her?",
+        "answers": [
+          "Kombinace různých dovedností a pohledů.",
+          "Žádná práce pro jednotlivce.",
+          "Méně potřeby designu.",
+          "Vždy rychlejší vývoj."
+        ],
+        "correct": "Kombinace různých dovedností a pohledů."
+      },
+      {
+        "question": "Kdo je producent ve vývojovém týmu?",
+        "answers": [
+          "Koordinuje tým, plánuje rozpočet a termíny.",
+          "Tvoří hudbu.",
+          "Programuje animace.",
+          "Navrhuje marketing."
+        ],
+        "correct": "Koordinuje tým, plánuje rozpočet a termíny."
+      },
+      {
+        "question": "Proč je důležitá konzistentní komunikace v týmu?",
+        "answers": [
+          "Zabraňuje nedorozuměním a zdržení.",
+          "Nahrazuje dokumentaci.",
+          "Zvyšuje rozlišení grafiky.",
+          "Snižuje počet animací."
+        ],
+        "correct": "Zabraňuje nedorozuměním a zdržení."
+      }
+    ],
+    "title": "Týmová spolupráce"
+  },
+  "Herni_prototyp_a_prezentace": {
+    "questions": [
+      {
+        "question": "Co je účelem herního prototypu?",
+        "answers": [
+          "Otestovat hlavní nápad a mechaniku dříve, než začne plný vývoj.",
+          "Nahradit příběh.",
+          "Vytvořit finální grafiku.",
+          "Naplnit hru zvuky."
+        ],
+        "correct": "Otestovat hlavní nápad a mechaniku dříve, než začne plný vývoj."
+      },
+      {
+        "question": "Co je pitch?",
+        "answers": [
+          "Krátký a stručný popis hry, který vysvětluje její podstatu.",
+          "Speciální level.",
+          "Název animace.",
+          "Typ fontu."
+        ],
+        "correct": "Krátký a stručný popis hry, který vysvětluje její podstatu."
+      },
+      {
+        "question": "Co má prototyp obsahovat?",
+        "answers": [
+          "Hlavní mechaniku a jednoduché testovací prostředí.",
+          "Finální grafiku všech lokací.",
+          "Všechny animace.",
+          "Celou kampaň."
+        ],
+        "correct": "Hlavní mechaniku a jednoduché testovací prostředí."
+      }
+    ],
+    "title": "Herní prototyp a prezentace"
+  },
+  "Kreativita_a_vyvoj_napadu": {
+    "questions": [
+      {
+        "question": "Co je brainstorming?",
+        "answers": [
+          "Rychlé generování nápadů bez hodnocení.",
+          "Analýza hotové hry.",
+          "Zkoumání grafiky.",
+          "Výběr hudby."
+        ],
+        "correct": "Rychlé generování nápadů bez hodnocení."
+      },
+      {
+        "question": "Jak poznáš dobrý herní nápad?",
+        "answers": [
+          "Dá se jednoduše vysvětlit a motivuje hráče pokračovat.",
+          "Musí mít spoustu postav.",
+          "Musí to být žánr RPG.",
+          "Musí mít drahou grafiku."
+        ],
+        "correct": "Dá se jednoduše vysvětlit a motivuje hráče pokračovat."
+      },
+      {
+        "question": "K čemu slouží iterace v designu?",
+        "answers": [
+          "Zlepšování nápadu na základě zpětné vazby.",
+          "Mazání starých souborů.",
+          "Zvyšování rozlišení grafiky.",
+          "Tvorba hudby."
+        ],
+        "correct": "Zlepšování nápadu na základě zpětné vazby."
+      }
+    ],
+    "title": "Kreativita a vývoj nápadů"
+  },
+  "Herni_prumysl_a_profese": {
+    "questions": [
+      {
+        "question": "Co je AAA studio?",
+        "answers": [
+          "Velké herní studio s vysokým rozpočtem a velkým týmem.",
+          "Malé nezávislé studio.",
+          "Studio zaměřené jen na mobilní hry.",
+          "Studio bez grafického oddělení."
+        ],
+        "correct": "Velké herní studio s vysokým rozpočtem a velkým týmem."
+      },
+      {
+        "question": "Co je indie studio?",
+        "answers": [
+          "Menší tým s větší kreativní svobodou.",
+          "Studio bez programátorů.",
+          "Studio pouze pro VR.",
+          "Studio zaměřené na sporty."
+        ],
+        "correct": "Menší tým s větší kreativní svobodou."
+      },
+      {
+        "question": "Co je hlavní rolí programátora v herním týmu?",
+        "answers": [
+          "Implementace logiky hry, mechanik a technických systémů.",
+          "Tvorba soundtracku.",
+          "Moderování komunity.",
+          "Psaní marketingových textů."
+        ],
+        "correct": "Implementace logiky hry, mechanik a technických systémů."
+      }
+    ],
+    "title": "Herní průmysl a profese"
+  },
+  "Etika_a_odpovednost": {
+    "questions": [
+      {
+        "question": "Co je pay-to-win?",
+        "answers": [
+          "Systém, kde hráči získávají výhodu placením.",
+          "Hra bez příběhu.",
+          "Hra pouze pro jednoho hráče.",
+          "Neškodná kosmetická úprava."
+        ],
+        "correct": "Systém, kde hráči získávají výhodu placením."
+      },
+      {
+        "question": "Proč je důležitá etika v herním designu?",
+        "answers": [
+          "Hry mají vliv na chování hráčů a mohou učit hodnoty.",
+          "Hry musí být vždy realistické.",
+          "Bez etiky nelze programovat AI.",
+          "Etika je pouze PR marketing."
+        ],
+        "correct": "Hry mají vliv na chování hráčů a mohou učit hodnoty."
+      },
+      {
+        "question": "Co je environmentální stereotyp?",
+        "answers": [
+          "Zjednodušené nebo urážlivé zobrazování určitých skupin lidí.",
+          "Vyprávění pomocí krajiny.",
+          "Typ grafického filtru.",
+          "Způsob kreslení postavy."
+        ],
+        "correct": "Zjednodušené nebo urážlivé zobrazování určitých skupin lidí."
+      }
+    ],
+    "title": "Etika a odpovědnost"
+  },
+  "Komunita_a_zpetna_vazba": {
+    "questions": [
+      {
+        "question": "Co je herní komunita?",
+        "answers": [
+          "Skupina hráčů sdílející zkušenosti a obsah kolem jedné hry.",
+          "Tým programátorů.",
+          "Skupina lidí, kteří nehráli hru.",
+          "Grafické oddělení studia."
+        ],
+        "correct": "Skupina hráčů sdílející zkušenosti a obsah kolem jedné hry."
+      },
+      {
+        "question": "Co je konstruktivní zpětná vazba hráčů?",
+        "answers": [
+          "Věcné, užitečné připomínky ke zlepšení hry.",
+          "Náhodné komentáře.",
+          "Spamové zprávy.",
+          "Vtipné meme obrázky."
+        ],
+        "correct": "Věcné, užitečné připomínky ke zlepšení hry."
+      },
+      {
+        "question": "Co je toxické chování v komunitě?",
+        "answers": [
+          "Urážení, výhružky nebo agresivní chování.",
+          "Rychlé hraní hry.",
+          "Psaní dlouhých textů.",
+          "Zpívání ve voice chatu."
+        ],
+        "correct": "Urážení, výhružky nebo agresivní chování."
+      }
+    ],
+    "title": "Komunita a zpětná vazba"
+  },
+  "Budoucnost_herniho_designu": {
+    "questions": [
+      {
+        "question": "Co je VR (Virtual Reality)?",
+        "answers": [
+          "Technologie, která vtahuje hráče přímo do herního světa pomocí headsetu.",
+          "Normální hraní na monitoru.",
+          "Zvukový efekt.",
+          "Způsob kreslení."
+        ],
+        "correct": "Technologie, která vtahuje hráče přímo do herního světa pomocí headsetu."
+      },
+      {
+        "question": "Co je procedurální generování?",
+        "answers": [
+          "Automatické vytváření herního obsahu pomocí algoritmů.",
+          "Ručně kreslená animace.",
+          "Ruční psaní dialogů.",
+          "Ruční modelování 3D objektů."
+        ],
+        "correct": "Automatické vytváření herního obsahu pomocí algoritmů."
+      },
+      {
+        "question": "Proč je AI stále důležitější v herním vývoji?",
+        "answers": [
+          "Pomáhá tvořit obsah, NPC chování, hudbu i svět hry.",
+          "Nahrazuje všechny programátory.",
+          "Slouží jen jako grafický efekt.",
+          "Způsobuje chyby v příběhu."
+        ],
+        "correct": "Pomáhá tvořit obsah, NPC chování, hudbu i svět hry."
+      }
+    ],
+    "title": "Budoucnost herního designu"
+  },
+  "Shrnuti_a_doporuceni": {
+    "questions": [
+      {
+        "question": "K čemu je dobré portfolio při přijímacím řízení?",
+        "answers": [
+          "Ukazuje dovednosti, kreativitu a způsob myšlení uchazeče.",
+          "Slouží jako formulář pro známky.",
+          "Nahrazuje pohovor.",
+          "Zajišťuje přijetí automaticky."
+        ],
+        "correct": "Ukazuje dovednosti, kreativitu a způsob myšlení uchazeče."
+      },
+      {
+        "question": "Proč je důležité tvořit pravidelně?",
+        "answers": [
+          "Pravidelnost zlepšuje dovednosti a pomáhá budovat sebejistotu.",
+          "Aby se zaplnil čas.",
+          "Aby vzniklo co nejvíce náhodných obrázků.",
+          "Protože to vyžaduje každý program."
+        ],
+        "correct": "Pravidelnost zlepšuje dovednosti a pomáhá budovat sebejistotu."
+      },
+      {
+        "question": "Co by měl uchazeč zvládnout před talentovkami?",
+        "answers": [
+          "Kresbu, popis konceptu hry, základní teorii designu a prezentaci nápadu.",
+          "Programování multiplayeru.",
+          "Profesionální 3D animace.",
+          "Hudební kompozici ve filmové kvalitě."
+        ],
+        "correct": "Kresbu, popis konceptu hry, základní teorii designu a prezentaci nápadu."
+      }
+    ],
+    "title": "Shrnutí a doporučení"
   }
 }

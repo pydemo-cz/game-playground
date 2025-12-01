@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Dream - AI Text Adventure</title>
+    <link rel="stylesheet" href="style.css">
+    <meta name="theme-color" content="#1a1a1a">
+</head>
+<body>
+
+    <!-- SETUP SCREEN -->
+    <div id="setup-screen" class="screen active">
+        <div class="container">
+            <h1>DREAM</h1>
+            <p class="subtitle">AI Powered Interactive Story</p>
+
+            <div class="input-group">
+                <label for="api-key">Hugging Face API Key</label>
+                <input type="password" id="api-key" placeholder="hf_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx">
+                <p class="hint">Your key is stored only in your browser's memory.</p>
+            </div>
+
+            <div class="input-group">
+                <label for="visual-style">Visual Style</label>
+                <select id="visual-style">
+                    <option value="Cyberpunk, neon lights, high tech, futuristic">Cyberpunk</option>
+                    <option value="Dark Fantasy, oil painting, mysterious, magical">Dark Fantasy</option>
+                    <option value="Sci-Fi, clean lines, space, stars, realistic">Sci-Fi</option>
+                    <option value="Horror, grainy, dark, scary, cinematic">Horror</option>
+                    <option value="Watercolor, artistic, soft colors, dreamy">Watercolor</option>
+                    <option value="Retro Pixel Art, 8-bit, vibrant">Pixel Art</option>
+                </select>
+            </div>
+
+            <div class="input-group">
+                <label for="user-goal">What do you want to experience?</label>
+                <textarea id="user-goal" rows="3" placeholder="I want to explore a haunted castle... / Chci prozkoumat strašidelný hrad..."></textarea>
+            </div>
+
+            <button id="btn-start">Start Dream</button>
+        </div>
+    </div>
+
+    <!-- GAME SCREEN -->
+    <div id="game-screen" class="screen">
+        <div id="image-container">
+            <div id="scene-image" class="image-layer"></div>
+            <div id="loading-image" class="loading-overlay hidden">
+                <div class="spinner"></div>
+                <span>Painting scene...</span>
+            </div>
+        </div>
+
+        <div id="log-container">
+            <div id="chat-log">
+                <!-- Messages go here -->
+            </div>
+        </div>
+
+        <div id="input-area">
+            <input type="text" id="user-input" placeholder="What do you do? / Co uděláš?" autocomplete="off">
+            <button id="btn-send">➤</button>
+        </div>
+    </div>
+
+    <script type="module" src="main.js"></script>
+</body>
+</html>

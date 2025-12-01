@@ -29,6 +29,11 @@
             "title": "Game Design Quiz",
             "description": "Test your knowledge of Game Design concepts in Campaign, Survival, or Training modes.",
             "url": "game-design-quiz/index.html"
+        },
+        {
+            "title": "Dream",
+            "description": "A generated text adventure powered by AI. Experience a unique story with illustrated scenes.",
+            "url": "dream/index.html"
         }
     ]
 }

@@ -1,15 +1,14 @@
 // CONFIGURATION
-const TEXT_MODEL = "HuggingFaceH4/zephyr-7b-beta";
-const IMAGE_MODEL = "stabilityai/stable-diffusion-2-1";
-const MAX_HISTORY = 10; // Keep last 10 turns to avoid token limits
+const PROXY_URL = "https://hf-proxy.alfa.pidak.cz"; // Assuming HTTPS for production compatibility
+const TEXT_MODEL = "deepseek-ai/DeepSeek-V3.2-Exp";
+const IMAGE_MODEL = "black-forest-labs/FLUX.1-dev";
+const MAX_HISTORY = 10;
 
 // STATE
 let state = {
-    apiKey: null,
     style: "",
     goal: "",
     history: [], // Array of { role: 'user'|'assistant'|'system', content: string }
-    currentImageBlob: null
 };
 
 // DOM ELEMENTS
@@ -19,7 +18,6 @@ const screens = {
 };
 
 const inputs = {
-    apiKey: document.getElementById('api-key'),
     style: document.getElementById('visual-style'),
     goal: document.getElementById('user-goal'),
     chat: document.getElementById('user-input')
@@ -36,10 +34,6 @@ const ui = {
 // --- INITIALIZATION ---
 
 document.addEventListener('DOMContentLoaded', () => {
-    // Load persisted API key if available
-    const savedKey = localStorage.getItem('hf_api_key');
-    if (savedKey) inputs.apiKey.value = savedKey;
-
     // Event Listeners
     ui.btnStart.addEventListener('click', startGame);
     ui.btnSend.addEventListener('click', handleUserTurn);
@@ -49,24 +43,15 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function startGame() {
-    const key = inputs.apiKey.value.trim();
     const style = inputs.style.value;
     const goal = inputs.goal.value.trim();
 
-    if (!key) {
-        alert("Please enter a Hugging Face API Key.");
-        return;
-    }
     if (!goal) {
         alert("Please describe what you want to experience.");
         return;
     }
 
-    // Save key locally
-    localStorage.setItem('hf_api_key', key);
-
     // Update State
-    state.apiKey = key;
     state.style = style;
     state.goal = goal;
 
@@ -106,7 +91,7 @@ async function handleUserTurn() {
     if (!text) return;
 
     inputs.chat.value = '';
-    inputs.chat.disabled = true; // Prevent double submit
+    inputs.chat.disabled = true;
 
     await processTurn(text);
 
@@ -121,9 +106,8 @@ async function processTurn(userText) {
         state.history.push({ role: 'user', content: userText });
     }
 
-    // Prune history to MAX_HISTORY to save tokens (keep System prompt at index 0)
+    // Prune history
     if (state.history.length > MAX_HISTORY + 1) {
-        // Keep system prompt (index 0) + last MAX_HISTORY items
         const systemMsg = state.history[0];
         const recentHistory = state.history.slice(-MAX_HISTORY);
         state.history = [systemMsg, ...recentHistory];
@@ -131,34 +115,47 @@ async function processTurn(userText) {
 
     // 2. Call Text API
     addMessage('system', 'Thinking...');
-    const loadingMsg = ui.chatLog.lastElementChild; // Keep ref to remove later
+    const loadingMsg = ui.chatLog.lastElementChild;
 
     try {
-        let aiResponse = await callTextAPI(state.history);
+        // Construct prompt from history for the API
+        // Since we are using chatCompletion on the proxy, we send the messages array or just the last prompt?
+        // The user's proxy seems to accept `inputs` as a string (prompt) OR `messages` if supported.
+        // Looking at the proxy code: `messages: [{ role: "user", content: prompt }]` inside `chatCompletion`.
+        // WAIT: The proxy code creates a SINGLE user message from `inputs`. It does NOT take a full history array in `inputs`.
+        // To maintain history context with this specific proxy implementation, we must concatenate the history into a single string prompt.
 
-        // Remove "Thinking..."
-        loadingMsg.remove();
+        let fullContextPrompt = "";
+        state.history.forEach(msg => {
+            if(msg.role === 'system') fullContextPrompt += `System: ${msg.content}\n`;
+            if(msg.role === 'user') fullContextPrompt += `User: ${msg.content}\n`;
+            if(msg.role === 'assistant') fullContextPrompt += `Assistant: ${msg.content}\n`;
+        });
+        // The proxy wraps `inputs` into `[{role: "user", content: inputs}]`.
+        // So we send the full conversation transcript as the "user input" to the model.
+        // This is a workaround because the proxy doesn't seem to expose the `messages` array directly in the request body.
 
-        // 3. Process Response (Check for [IMAGE])
+        let aiResponse = await callTextAPI(fullContextPrompt);
+
+        if (loadingMsg && loadingMsg.parentNode) loadingMsg.remove();
+
+        // 3. Process Response
         let shouldGenImage = false;
         if (aiResponse.includes('[IMAGE]')) {
             shouldGenImage = true;
             aiResponse = aiResponse.replace('[IMAGE]', '').trim();
         }
 
-        // Add to history (cleaned)
         state.history.push({ role: 'assistant', content: aiResponse });
-
-        // Show Text
         addMessage('ai', aiResponse);
 
-        // 4. Generate Image if needed (or if it's the start)
+        // 4. Generate Image
         if (shouldGenImage || state.history.length <= 2) {
             triggerImageGeneration(aiResponse);
         }
 
     } catch (error) {
-        loadingMsg.remove();
+        if (loadingMsg && loadingMsg.parentNode) loadingMsg.remove();
         addMessage('system', `Error: ${error.message}`);
         console.error(error);
     }
@@ -167,16 +164,13 @@ async function processTurn(userText) {
 async function triggerImageGeneration(sceneText) {
     ui.loadingImage.classList.remove('hidden');
 
-    // Create prompt: Style + Truncated Text
-    // Truncate text to ~200 chars to avoid very long prompts
     const shortText = sceneText.length > 200 ? sceneText.substring(0, 200) + "..." : sceneText;
-    const prompt = `${state.style}, ${shortText}, high quality, masterpiece`;
+    const prompt = `${state.style}, ${shortText}, high quality, cinematic lighting, detailed`;
 
     try {
         const blob = await callImageAPI(prompt);
         const url = URL.createObjectURL(blob);
 
-        // Cross-fade
         const img = new Image();
         img.onload = () => {
             ui.imageLayer.style.backgroundImage = `url('${url}')`;
@@ -187,79 +181,67 @@ async function triggerImageGeneration(sceneText) {
     } catch (error) {
         console.error("Image generation failed:", error);
         ui.loadingImage.classList.add('hidden');
-        // Silent fail for image is okay, text is primary
     }
 }
-
-// --- UI HELPERS ---
 
 function addMessage(role, text) {
     const div = document.createElement('div');
     div.classList.add('msg', role);
     div.innerText = text;
     ui.chatLog.appendChild(div);
-
-    // Auto scroll to bottom
     ui.chatLog.scrollTop = ui.chatLog.scrollHeight;
 }
 
 // --- API CLIENT ---
 
-async function callTextAPI(messages) {
-    // Zephyr format: <|system|>...</s><|user|>...</s><|assistant|>...
-    // We need to format the history for the model manually if not using the chat endpoint,
-    // but HF Inference API for Zephyr often accepts the list of messages in 'inputs' if structured correctly
-    // or we construct a prompt string.
-    // Let's use the standard "chat template" string construction for safety with raw inference API.
-
-    let prompt = "";
-    messages.forEach(msg => {
-        prompt += `<|${msg.role}|>\n${msg.content}</s>\n`;
-    });
-    prompt += `<|assistant|>\n`;
-
-    const response = await fetch(`https://api-inference.huggingface.co/models/${TEXT_MODEL}`, {
+async function callTextAPI(prompt) {
+    const response = await fetch(`${PROXY_URL}/api/text`, {
         method: "POST",
-        headers: {
-            "Authorization": `Bearer ${state.apiKey}`,
-            "Content-Type": "application/json"
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-            inputs: prompt,
+            model: TEXT_MODEL,
+            inputs: prompt, // The proxy wraps this as the user message
             parameters: {
-                max_new_tokens: 256,
-                temperature: 0.7,
-                top_p: 0.9,
-                return_full_text: false
+                max_new_tokens: 300,
+                temperature: 0.7
             }
         })
     });
 
     if (!response.ok) {
-        throw new Error(`Text API Error: ${response.status} ${response.statusText}`);
+        const err = await response.text();
+        throw new Error(`Text API (${response.status}): ${err}`);
     }
 
-    const result = await response.json();
+    const data = await response.json();
+    // Expected format from proxy: { choices: [ { message: { content: "..." } } ] }
+    if (data.choices && data.choices.length > 0 && data.choices[0].message) {
+        return data.choices[0].message.content;
+    }
+    // Fallback if proxy returns standard generation format
+    else if (Array.isArray(data) && data[0].generated_text) {
+        return data[0].generated_text;
+    }
+    else if (data.generated_text) {
+        return data.generated_text;
+    }
 
-    // Result is usually [{ generated_text: "..." }]
-    let text = result[0]?.generated_text || "";
-    return text.trim();
+    return JSON.stringify(data);
 }
 
 async function callImageAPI(prompt) {
-    const response = await fetch(`https://api-inference.huggingface.co/models/${IMAGE_MODEL}`, {
+    const response = await fetch(`${PROXY_URL}/api/image`, {
         method: "POST",
-        headers: {
-            "Authorization": `Bearer ${state.apiKey}`,
-            "Content-Type": "application/json"
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+            model: IMAGE_MODEL,
             inputs: prompt
         })
     });
 
     if (!response.ok) {
-        throw new Error(`Image API Error: ${response.status}`);
+        const err = await response.text();
+        throw new Error(`Image API (${response.status}): ${err}`);
     }
 
     return await response.blob();

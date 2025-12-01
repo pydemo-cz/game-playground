@@ -1,0 +1,61 @@
+{
+  "sample": {
+    "Zaklady_kresby": {
+      "title": "Základy kresby",
+      "questions": [
+        {
+          "question": "Co je účelem základní kresby?",
+          "answers": [
+            "Zachytit realitu pomocí linií, tvarů a světla.",
+            "Vyplnit papír barvami.",
+            "Vytvořit animaci.",
+            "Změřit velikost objektu pravítkem."
+          ],
+          "correct": "Zachytit realitu pomocí linií, tvarů a světla."
+        }
+      ]
+    },
+
+    "Herni_mechaniky_a_pravidla": {
+      "title": "Herní mechaniky a pravidla",
+      "questions": [
+        {
+          "question": "Co je herní mechanika?",
+          "answers": [
+            "Pravidlo nebo činnost, kterou může hráč ve hře vykonávat.",
+            "Druh grafického filtru.",
+            "Hudební doprovod.",
+            "Nastavení obtížnosti."
+          ],
+          "correct": "Pravidlo nebo činnost, kterou může hráč ve hře vykonávat."
+        },
+        {
+          "question": "Co znamená balancování hry?",
+          "answers": [
+            "Úpravy obtížnosti, aby hra nebyla ani příliš lehká, ani příliš těžká.",
+            "Zvýšení počtu barev v prostředí.",
+            "Přidání nových animací.",
+            "Změna názvu hry."
+          ],
+          "correct": "Úpravy obtížnosti, aby hra nebyla ani příliš lehká, ani příliš těžká."
+        }
+      ]
+    },
+
+    "Budoucnost_herniho_designu": {
+      "title": "Budoucnost herního designu",
+      "questions": [
+        {
+          "question": "Co je VR (Virtual Reality)?",
+          "answers": [
+            "Technologie, která vtahuje hráče přímo do herního světa.",
+            "Komiksový styl kresby.",
+            "Zvukový efekt ve hře.",
+            "Typ textury pro 3D modely."
+          ],
+          "correct": "Technologie, která vtahuje hráče přímo do herního světa."
+        }
+      ]
+    }
+  }
+}

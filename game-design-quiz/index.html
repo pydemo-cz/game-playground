@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Game Design Quiz</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Roboto:wght@300;400;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Main Menu -->
+        <section id="menu-screen" class="screen active">
+            <h1 class="glitch-title" data-text="GAME DESIGN QUIZ">GAME DESIGN QUIZ</h1>
+            <div class="menu-buttons">
+                <button class="neon-btn" onclick="app.startCampaign()">
+                    <span class="btn-text">KAMPAŇ</span>
+                    <span class="btn-desc">Postupuj po kapitolách</span>
+                </button>
+                <button class="neon-btn" onclick="app.startSurvival()">
+                    <span class="btn-text">SURVIVAL</span>
+                    <span class="btn-desc">3 životy, nekonečno otázek</span>
+                </button>
+                <button class="neon-btn" onclick="app.startTraining()">
+                    <span class="btn-text">TRÉNINK</span>
+                    <span class="btn-desc">Zaměřeno na tvé chyby</span>
+                </button>
+            </div>
+        </section>
+
+        <!-- Campaign Level Select -->
+        <section id="campaign-screen" class="screen hidden">
+            <header class="top-bar">
+                <button class="icon-btn back-btn" onclick="app.showMenu()">← ZPĚT</button>
+                <h2>KAPITOLY</h2>
+            </header>
+            <div id="chapter-list" class="chapter-grid">
+                <!-- Chapters injected by JS -->
+            </div>
+        </section>
+
+        <!-- Game Interface -->
+        <section id="game-screen" class="screen hidden">
+            <header class="game-header">
+                <div class="stats-box">
+                    <span id="game-mode-label">KAMPAŇ</span>
+                </div>
+                <div class="stats-box" id="lives-display" style="display: none;">
+                    ❤️❤️❤️
+                </div>
+                <div class="stats-box" id="score-display">
+                    SKÓRE: 0
+                </div>
+            </header>
+
+            <div class="progress-container">
+                <div id="progress-bar" class="progress-bar"></div>
+            </div>
+
+            <div class="question-container">
+                <h3 id="question-text">Loading...</h3>
+            </div>
+
+            <div id="answers-grid" class="answers-grid">
+                <!-- Answers injected by JS -->
+            </div>
+
+            <div id="feedback-message" class="feedback-message hidden">
+                SPRÁVNĚ!
+            </div>
+
+            <button id="next-btn" class="neon-btn next-btn hidden" onclick="game.nextQuestion()">DALŠÍ →</button>
+        </section>
+
+        <!-- Result Screen -->
+        <section id="result-screen" class="screen hidden">
+            <h2 id="result-title">KAPITOLA DOKONČENA</h2>
+            <div class="result-stats">
+                <div class="big-score" id="final-score">10/10</div>
+                <div class="stars" id="result-stars">★★★</div>
+                <p id="result-message">Skvělá práce!</p>
+            </div>
+            <div class="menu-buttons">
+                <button class="neon-btn" onclick="app.showMenu()">MENU</button>
+                <button id="restart-btn" class="neon-btn" onclick="app.restartLevel()">OPAKOVAT</button>
+                <button id="next-level-btn" class="neon-btn" onclick="app.nextLevel()">DALŠÍ KAPITOLA</button>
+            </div>
+        </section>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

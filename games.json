@@ -24,6 +24,11 @@
             "title": "Jumpina",
             "description": "A 2D platformer with an integrated level editor.",
             "url": "jumpina/index.html"
+        },
+        {
+            "title": "Game Design Quiz",
+            "description": "Test your knowledge of Game Design concepts in Campaign, Survival, or Training modes.",
+            "url": "game-design-quiz/index.html"
         }
     ]
 }

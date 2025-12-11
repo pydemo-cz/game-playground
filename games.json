@@ -1,6 +1,11 @@
 {
     "games": [
         {
+            "title": "Pixai",
+            "description": "Infinite pixel world prototype with dynamic chunk loading.",
+            "url": "pixai/index.html"
+        },
+        {
             "title": "Minecraft Clone",
             "description": "A 3D sandbox adventure. Explore a procedurally generated world made of blocks.",
             "url": "minecraft-clone/index.html"

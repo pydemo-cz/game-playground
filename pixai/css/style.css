@@ -1,0 +1,15 @@
+html, body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background-color: #1a1a1a; /* Dark background to reduce eye strain */
+    touch-action: none; /* Prevent default browser handling of touch gestures */
+}
+
+canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
